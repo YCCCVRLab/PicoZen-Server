@@ -1,7 +1,5 @@
-const { Handler } = require('@netlify/functions');
-
-// In-memory database for now (in production, you'd use a real database)
-let apps = [
+// Apps API endpoint for Netlify Functions
+const apps = [
   {
     id: 1,
     packageName: 'com.ubisim.player',
@@ -43,23 +41,8 @@ Perfect for nursing education, professional development, and clinical skills tra
   }
 ];
 
-const categories = [
-  { id: 1, name: 'Games', description: 'VR Games and Entertainment', appCount: 0 },
-  { id: 2, name: 'Education', description: 'Learning and Training Applications', appCount: 1 },
-  { id: 3, name: 'Productivity', description: 'Work and Utility Applications', appCount: 0 },
-  { id: 4, name: 'Social', description: 'Communication and Social VR', appCount: 0 },
-  { id: 5, name: 'Health & Fitness', description: 'Exercise and Wellness Apps', appCount: 0 },
-  { id: 6, name: 'Entertainment', description: 'Media and Video Applications', appCount: 0 },
-  { id: 7, name: 'Tools', description: 'System Utilities and Tools', appCount: 0 }
-];
-
-// Export the apps array so other functions can access it
-global.picozenApps = apps;
-
 exports.handler = async (event, context) => {
-  const { httpMethod, path, queryStringParameters } = event;
-  
-  // Enable CORS
+  // Enable CORS for all requests
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -68,7 +51,7 @@ exports.handler = async (event, context) => {
   };
 
   // Handle preflight requests
-  if (httpMethod === 'OPTIONS') {
+  if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
       headers,
@@ -76,138 +59,100 @@ exports.handler = async (event, context) => {
     };
   }
 
-  try {
-    // Parse the path to determine the endpoint
-    const pathParts = path.replace('/.netlify/functions/apps', '').split('/').filter(p => p);
-    
-    if (httpMethod === 'GET') {
-      // GET /apps - List all apps
-      if (pathParts.length === 0) {
-        const { page = 1, limit = 20, category, search } = queryStringParameters || {};
-        
-        let filteredApps = apps.filter(app => app.active);
-        
-        // Filter by category
-        if (category) {
-          filteredApps = filteredApps.filter(app => 
-            app.category.toLowerCase() === category.toLowerCase()
-          );
-        }
-        
-        // Filter by search
-        if (search) {
-          const searchLower = search.toLowerCase();
-          filteredApps = filteredApps.filter(app =>
-            app.title.toLowerCase().includes(searchLower) ||
-            app.description.toLowerCase().includes(searchLower) ||
-            app.developer.toLowerCase().includes(searchLower)
-          );
-        }
-        
-        // Pagination
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
-        const offset = (pageNum - 1) * limitNum;
-        const paginatedApps = filteredApps.slice(offset, offset + limitNum);
-        
-        // Transform for API response
-        const transformedApps = paginatedApps.map(app => ({
-          id: app.id,
-          packageName: app.packageName,
-          title: app.title,
-          description: app.description,
-          shortDescription: app.shortDescription,
-          version: app.version,
-          versionCode: app.versionCode,
-          category: app.category,
-          developer: app.developer,
-          rating: app.rating,
-          downloadCount: app.downloadCount,
-          fileSize: app.fileSize,
-          downloadUrl: app.downloadUrl, // Direct URL for now
-          iconUrl: app.iconUrl,
-          featured: app.featured,
-          screenshots: app.screenshots || [],
-          createdAt: app.createdAt,
-          updatedAt: app.updatedAt
-        }));
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            apps: transformedApps,
-            pagination: {
-              page: pageNum,
-              limit: limitNum,
-              total: filteredApps.length,
-              pages: Math.ceil(filteredApps.length / limitNum)
-            }
-          })
-        };
-      }
-      
-      // GET /apps/:id - Get single app
-      if (pathParts.length === 1) {
-        const appId = parseInt(pathParts[0]);
-        const app = apps.find(a => a.id === appId && a.active);
-        
-        if (!app) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'App not found' })
-          };
-        }
-        
-        const transformedApp = {
-          id: app.id,
-          packageName: app.packageName,
-          title: app.title,
-          description: app.description,
-          shortDescription: app.shortDescription,
-          version: app.version,
-          versionCode: app.versionCode,
-          category: app.category,
-          developer: app.developer,
-          rating: app.rating,
-          downloadCount: app.downloadCount,
-          fileSize: app.fileSize,
-          downloadUrl: app.downloadUrl,
-          iconUrl: app.iconUrl,
-          featured: app.featured,
-          screenshots: app.screenshots || [],
-          createdAt: app.createdAt,
-          updatedAt: app.updatedAt
-        };
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            app: transformedApp
-          })
-        };
-      }
-    }
-    
-    // Method not allowed
+  // Only allow GET requests for this endpoint
+  if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({ 
+        error: 'Method not allowed',
+        allowedMethods: ['GET'],
+        requestedMethod: event.httpMethod
+      })
+    };
+  }
+
+  try {
+    const { queryStringParameters = {} } = event;
+    const { page = '1', limit = '20', category, search } = queryStringParameters;
+    
+    let filteredApps = apps.filter(app => app.active);
+    
+    // Filter by category
+    if (category && category.trim() !== '') {
+      filteredApps = filteredApps.filter(app => 
+        app.category.toLowerCase() === category.toLowerCase()
+      );
+    }
+    
+    // Filter by search
+    if (search && search.trim() !== '') {
+      const searchLower = search.toLowerCase();
+      filteredApps = filteredApps.filter(app =>
+        app.title.toLowerCase().includes(searchLower) ||
+        app.description.toLowerCase().includes(searchLower) ||
+        app.developer.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Pagination
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 20;
+    const offset = (pageNum - 1) * limitNum;
+    const paginatedApps = filteredApps.slice(offset, offset + limitNum);
+    
+    // Transform for API response
+    const transformedApps = paginatedApps.map(app => ({
+      id: app.id,
+      packageName: app.packageName,
+      title: app.title,
+      description: app.description,
+      shortDescription: app.shortDescription,
+      version: app.version,
+      versionCode: app.versionCode,
+      category: app.category,
+      developer: app.developer,
+      rating: app.rating,
+      downloadCount: app.downloadCount,
+      fileSize: app.fileSize,
+      downloadUrl: app.downloadUrl,
+      iconUrl: app.iconUrl,
+      featured: app.featured,
+      screenshots: app.screenshots || [],
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt
+    }));
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        apps: transformedApps,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: filteredApps.length,
+          pages: Math.ceil(filteredApps.length / limitNum)
+        },
+        debug: {
+          totalAppsInDatabase: apps.length,
+          activeApps: apps.filter(app => app.active).length,
+          requestedCategory: category,
+          requestedSearch: search
+        }
+      })
     };
     
   } catch (error) {
-    console.error('Function error:', error);
+    console.error('Apps function error:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message
+        message: error.message,
+        stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
       })
     };
   }
