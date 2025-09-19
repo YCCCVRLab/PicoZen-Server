@@ -49,7 +49,7 @@
             font-weight: 500;
             color: #ccc;
         }
-        .form-group input, .form-group textarea {
+        .form-group input, .form-group textarea, .form-group select {
             width: 100%;
             padding: 12px;
             border: 1px solid #3a3a3a;
@@ -58,7 +58,7 @@
             color: #e0e0e0;
             font-size: 14px;
         }
-        .form-group input:focus, .form-group textarea:focus {
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
             outline: none;
             border-color: #4a9eff;
             box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
@@ -119,6 +119,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .url-list li:last-child {
             border-bottom: none;
@@ -242,6 +244,76 @@
         .tab-content.active {
             display: block;
         }
+        
+        /* Modal for editing */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-content .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #e0e0e0;
+            cursor: pointer;
+        }
+        .modal-content h3 {
+            color: #4a9eff;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        .modal-content .form-group {
+            margin-bottom: 15px;
+        }
+        .modal-content .form-group label {
+            color: #ccc;
+        }
+        .modal-content .form-group input, .modal-content .form-group textarea, .modal-content .form-group select {
+            background: #1a1a1a;
+            border-color: #3a3a3a;
+            color: #e0e0e0;
+        }
+        .modal-content .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+        .modal-content .source-url-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+        }
+        .modal-content .source-url-item button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -254,9 +326,9 @@
         <div id="message"></div>
         
         <div class="tabs">
-            <button class="tab active" onclick="showTab('scrape')">🔍 Add from Store URLs</button>
-            <button class="tab" onclick="showTab('manual')">✏️ Manual Add</button>
-            <button class="tab" onclick="showTab('manage')">📱 Manage Apps</button>
+            <button class="tab active" onclick="showTab('scrape', event)">🔍 Add from Store URLs</button>
+            <button class="tab" onclick="showTab('manual', event)">✏️ Manual Add</button>
+            <button class="tab" onclick="showTab('manage', event)">📱 Manage Apps</button>
         </div>
         
         <!-- Store URL Scraping Tab -->
@@ -268,7 +340,7 @@
                 </p>
                 
                 <div class="store-urls">
-                    <h4>Supported Store URLs:</h4>
+                    <h4>URLs to Scrape:</h4>
                     <ul class="url-list" id="url-list">
                         <li style="border: none; padding: 5px 0; color: #666;">
                             No URLs added yet. Add some store URLs below.
@@ -305,12 +377,16 @@
                                 <input type="text" name="title" required>
                             </div>
                             <div class="form-group">
+                                <label>Package Name (optional)</label>
+                                <input type="text" name="packageName" placeholder="com.example.app">
+                            </div>
+                            <div class="form-group">
                                 <label>Developer *</label>
                                 <input type="text" name="developer" required>
                             </div>
                             <div class="form-group">
                                 <label>Category</label>
-                                <select name="category" style="width: 100%; padding: 12px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(0,0,0,0.3); color: #e0e0e0;">
+                                <select name="category">
                                     <option value="Games">Games</option>
                                     <option value="Education">Education</option>
                                     <option value="Productivity">Productivity</option>
@@ -343,11 +419,20 @@
                                     <input type="checkbox" name="featured"> Featured App
                                 </label>
                             </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" name="active" checked> Active App
+                                </label>
+                            </div>
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label>Description</label>
+                        <label>Short Description</label>
+                        <textarea name="shortDescription" placeholder="Brief description (max 200 chars)"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Full Description</label>
                         <textarea name="description" placeholder="Detailed app description..."></textarea>
                     </div>
                     
@@ -369,12 +454,116 @@
             </div>
         </div>
     </div>
+
+    <!-- Edit App Modal -->
+    <div id="edit-app-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeEditModal()">✖️</button>
+            <h3>Edit App</h3>
+            <form id="edit-app-form">
+                <input type="hidden" name="id" id="edit-app-id">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <div class="form-group">
+                            <label>App Title *</label>
+                            <input type="text" name="title" id="edit-title" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Package Name</label>
+                            <input type="text" name="packageName" id="edit-packageName">
+                        </div>
+                        <div class="form-group">
+                            <label>Developer *</label>
+                            <input type="text" name="developer" id="edit-developer" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select name="category" id="edit-category">
+                                <option value="Games">Games</option>
+                                <option value="Education">Education</option>
+                                <option value="Productivity">Productivity</option>
+                                <option value="Social">Social</option>
+                                <option value="Health & Fitness">Health & Fitness</option>
+                                <option value="Entertainment">Entertainment</option>
+                                <option value="Tools">Tools</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Version</label>
+                            <input type="text" name="version" id="edit-version">
+                        </div>
+                        <div class="form-group">
+                            <label>Rating (0-5)</label>
+                            <input type="number" name="rating" min="0" max="5" step="0.1" id="edit-rating">
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label>Download URL (APK)</label>
+                            <input type="url" name="downloadUrl" id="edit-downloadUrl">
+                        </div>
+                        <div class="form-group">
+                            <label>Icon URL</label>
+                            <input type="url" name="iconUrl" id="edit-iconUrl">
+                        </div>
+                        <div class="form-group">
+                            <label>Screenshots (comma-separated URLs)</label>
+                            <textarea name="screenshots" id="edit-screenshots" placeholder="https://img1.com, https://img2.com"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" name="featured" id="edit-featured"> Featured App
+                            </label>
+                            <label style="margin-left: 20px;">
+                                <input type="checkbox" name="active" id="edit-active"> Active App
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Short Description (max 200 chars)</label>
+                    <textarea name="shortDescription" id="edit-shortDescription"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Full Description</label>
+                    <textarea name="description" id="edit-description"></textarea>
+                </div>
+                
+                <div class="store-urls">
+                    <h4>Source Store URLs:</h4>
+                    <ul class="url-list" id="edit-source-url-list">
+                        <!-- Dynamic URLs will be loaded here -->
+                    </ul>
+                    <div class="url-input-group">
+                        <input type="url" id="edit-add-store-url-input" placeholder="Add new store URL">
+                        <button type="button" onclick="addSourceUrlToEdit()">Add</button>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-danger" onclick="deleteApp()">Delete App</button>
+                    <button type="submit" class="btn">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
     
     <script>
-        let storeUrls = [];
+        const API_BASE = 'https://picozen-api.netlify.app/api';
+        let storeUrls = []; // For the scrape tab
+        let currentAppsData = []; // For the manage tab
         
-        function showTab(tabName) {
-            // Hide all tabs
+        // Function to show messages
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // Tab switching logic
+        function showTab(tabName, event) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -382,16 +571,15 @@
                 tab.classList.remove('active');
             });
             
-            // Show selected tab
             document.getElementById(tabName + '-tab').classList.add('active');
             event.target.classList.add('active');
             
-            // Load apps if manage tab is selected
             if (tabName === 'manage') {
                 loadApps();
             }
         }
         
+        // Store URL management for scraping tab
         function addStoreUrl() {
             const input = document.getElementById('store-url-input');
             const url = input.value.trim();
@@ -401,7 +589,6 @@
                 return;
             }
             
-            // Validate URL format
             const supportedPatterns = [
                 /^https:\/\/(www\.)?oculus\.com\/experiences\/(quest|rift)\/\d+/,
                 /^https:\/\/(www\.)?sidequestvr\.com\/app\/\d+/,
@@ -438,16 +625,9 @@
                 let storeName = 'Unknown';
                 let storeClass = '';
                 
-                if (url.includes('oculus.com')) {
-                    storeName = 'Meta Quest';
-                    storeClass = 'meta';
-                } else if (url.includes('sidequestvr.com')) {
-                    storeName = 'SideQuest';
-                    storeClass = 'sidequest';
-                } else if (url.includes('steampowered.com')) {
-                    storeName = 'Steam VR';
-                    storeClass = 'steam';
-                }
+                if (url.includes('oculus.com')) { storeName = 'Meta Quest'; storeClass = 'meta'; }
+                else if (url.includes('sidequestvr.com')) { storeName = 'SideQuest'; storeClass = 'sidequest'; }
+                else if (url.includes('steampowered.com')) { storeName = 'Steam VR'; storeClass = 'steam'; }
                 
                 return `
                     <li>
@@ -455,7 +635,7 @@
                             <span class="store-badge ${storeClass}">${storeName}</span>
                             <span style="margin-left: 10px; font-size: 14px;">${url}</span>
                         </div>
-                        <button onclick="removeUrl(${index})" style="background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Remove</button>
+                        <button onclick="removeUrl(${index})">Remove</button>
                     </li>
                 `;
             }).join('');
@@ -477,7 +657,7 @@
             btn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; margin-right: 8px; display: inline-block;"></div>Scraping...';
             
             try {
-                const response = await fetch('/api/add-app', {
+                const response = await fetch(`${API_BASE}/add-app`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -489,16 +669,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showMessage(`Successfully added ${result.apps.length} apps!`, 'success');
+                    showMessage(`Successfully added/updated ${result.apps.length} apps!`, 'success');
                     storeUrls = [];
                     updateUrlList();
-                    
-                    // Show added apps
-                    if (result.apps.length > 0) {
-                        const appsList = result.apps.map(app => 
-                            `• ${app.title} by ${app.developer} (${app.category})`
-                        ).join('<br>');
-                        showMessage(`Added apps:<br>${appsList}`, 'success');
+                    if (document.getElementById('manage-tab').classList.contains('active')) {
+                        loadApps();
                     }
                 } else {
                     showMessage(`Error: ${result.error}`, 'error');
@@ -512,15 +687,64 @@
             }
         }
         
+        // Manual app submission
+        document.getElementById('manual-app-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const appData = {
+                title: form.title.value,
+                packageName: form.packageName.value || undefined,
+                developer: form.developer.value,
+                category: form.category.value,
+                version: form.version.value || undefined,
+                downloadUrl: form.downloadUrl.value || undefined,
+                iconUrl: form.iconUrl.value || undefined,
+                rating: form.rating.value ? parseFloat(form.rating.value) : undefined,
+                featured: form.featured.checked,
+                active: form.active.checked,
+                shortDescription: form.shortDescription.value || undefined,
+                description: form.description.value || undefined
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/add-app`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'add-manual',
+                        appData: appData
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`App "${result.app.title}" added successfully!`, 'success');
+                    form.reset();
+                    if (document.getElementById('manage-tab').classList.contains('active')) {
+                        loadApps();
+                    }
+                } else {
+                    showMessage(`Error: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                showMessage(`Network error: ${error.message}`, 'error');
+            }
+        });
+
+        // Manage Apps Tab Functions
         async function loadApps() {
             const container = document.getElementById('apps-container');
             container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading apps...</div>';
             
             try {
-                const response = await fetch('/api/add-app');
+                const response = await fetch(`${API_BASE}/add-app`); // Using add-app for GET all
                 const result = await response.json();
                 
                 if (result.success && result.apps.length > 0) {
+                    currentAppsData = result.apps;
                     container.innerHTML = '<div class="apps-grid">' + 
                         result.apps.map(app => `
                             <div class="app-card">
@@ -538,8 +762,11 @@
                                     ${app.featured ? '<span style="background: #ffd700; color: #000; padding: 2px 6px; border-radius: 10px; font-size: 12px; margin-left: 5px;">Featured</span>' : ''}
                                 </div>
                                 <div class="app-meta">
-                                    <span>v${app.version}</span>
-                                    <span>${app.downloadCount} downloads</span>
+                                    <span>v${app.version || 'N/A'}</span>
+                                    <span>${app.downloadCount || 0} downloads</span>
+                                </div>
+                                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                                    <button class="btn" style="flex: 1;" onclick="openEditModal(${app.id})">Edit</button>
                                 </div>
                             </div>
                         `).join('') + '</div>';
@@ -548,42 +775,159 @@
                 }
                 
             } catch (error) {
-                container.innerHTML = '<p style="text-align: center; color: #f44336; padding: 40px;">Error loading apps: ' + error.message + '</p>';
+                showMessage(`Error loading apps: ${error.message}`, 'error');
+                container.innerHTML = '<p style="text-align: center; color: #f44336; padding: 40px;">Error loading apps.</p>';
+            }
+        }
+
+        // Edit Modal Functions
+        let currentEditApp = null;
+
+        function openEditModal(appId) {
+            currentEditApp = currentAppsData.find(app => app.id === appId);
+            if (!currentEditApp) {
+                showMessage('App not found for editing.', 'error');
+                return;
+            }
+            
+            document.getElementById('edit-app-id').value = currentEditApp.id;
+            document.getElementById('edit-title').value = currentEditApp.title;
+            document.getElementById('edit-packageName').value = currentEditApp.packageName || '';
+            document.getElementById('edit-developer').value = currentEditApp.developer;
+            document.getElementById('edit-category').value = currentEditApp.category;
+            document.getElementById('edit-version').value = currentEditApp.version || '';
+            document.getElementById('edit-rating').value = currentEditApp.rating || 0;
+            document.getElementById('edit-downloadUrl').value = currentEditApp.downloadUrl || '';
+            document.getElementById('edit-iconUrl').value = currentEditApp.iconUrl || '';
+            document.getElementById('edit-shortDescription').value = currentEditApp.shortDescription || '';
+            document.getElementById('edit-description').value = currentEditApp.description || '';
+            document.getElementById('edit-featured').checked = currentEditApp.featured;
+            document.getElementById('edit-active').checked = currentEditApp.active;
+
+            renderEditSourceUrls(currentEditApp.sourceUrls || {});
+            
+            document.getElementById('edit-app-modal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-app-modal').style.display = 'none';
+            currentEditApp = null;
+        }
+
+        function renderEditSourceUrls(sourceUrls) {
+            const urlList = document.getElementById('edit-source-url-list');
+            urlList.innerHTML = '';
+            
+            const entries = Object.entries(sourceUrls).filter(([key, value]) => value);
+            
+            if (entries.length === 0) {
+                urlList.innerHTML = '<li style="border: none; padding: 5px 0; color: #666;">No source URLs for this app.</li>';
+                return;
+            }
+
+            entries.forEach(([key, url]) => {
+                let storeName = key.charAt(0).toUpperCase() + key.slice(1);
+                let storeClass = key;
+                if (key === 'meta') { storeName = 'Meta Quest'; storeClass = 'meta'; }
+                else if (key === 'sidequest') { storeName = 'SideQuest'; storeClass = 'sidequest'; }
+                else if (key === 'steam') { storeName = 'Steam VR'; storeClass = 'steam'; }
+                else if (key === 'direct') { storeName = 'Direct APK'; storeClass = ''; }
+
+                urlList.innerHTML += `
+                    <li class="source-url-item">
+                        <div>
+                            <span class="store-badge ${storeClass}">${storeName}</span>
+                            <span style="margin-left: 10px; font-size: 14px;">${url}</span>
+                        </div>
+                        <button onclick="removeSourceUrlFromEdit('${key}')">Remove</button>
+                    </li>
+                `;
+            });
+        }
+
+        function addSourceUrlToEdit() {
+            const input = document.getElementById('edit-add-store-url-input');
+            const url = input.value.trim();
+            
+            if (!url) {
+                showMessage('Please enter a URL to add.', 'error');
+                return;
+            }
+
+            let storeKey = 'direct';
+            if (url.includes('oculus.com')) { storeKey = 'meta'; }
+            else if (url.includes('sidequestvr.com')) { storeKey = 'sidequest'; }
+            else if (url.includes('steampowered.com')) { storeKey = 'steam'; }
+            
+            if (currentEditApp.sourceUrls[storeKey] === url) {
+                showMessage('This URL already exists for this store type.', 'warning');
+                return;
+            }
+
+            currentEditApp.sourceUrls[storeKey] = url;
+            input.value = '';
+            renderEditSourceUrls(currentEditApp.sourceUrls);
+            showMessage('Source URL added to app.', 'success');
+        }
+
+        function removeSourceUrlFromEdit(key) {
+            if (currentEditApp && currentEditApp.sourceUrls) {
+                currentEditApp.sourceUrls[key] = null;
+                renderEditSourceUrls(currentEditApp.sourceUrls);
+                showMessage('Source URL removed.', 'success');
             }
         }
         
-        // Manual form submission
-        document.getElementById('manual-app-form').addEventListener('submit', async (e) => {
+        document.getElementById('edit-app-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = new FormData(e.target);
-            const appData = {
-                title: formData.get('title'),
-                developer: formData.get('developer'),
-                category: formData.get('category'),
-                version: formData.get('version') || '1.0.0',
-                description: formData.get('description'),
-                downloadUrl: formData.get('downloadUrl'),
-                iconUrl: formData.get('iconUrl'),
-                rating: formData.get('rating') ? parseFloat(formData.get('rating')) : 0,
-                featured: formData.has('featured')
+            const form = e.target;
+            const appId = parseInt(form.id.value);
+            
+            const updatedData = {
+                title: form.title.value,
+                packageName: form.packageName.value || undefined,
+                developer: form.developer.value,
+                category: form.category.value,
+                version: form.version.value || undefined,
+                rating: form.rating.value ? parseFloat(form.rating.value) : undefined,
+                downloadUrl: form.downloadUrl.value || undefined,
+                iconUrl: form.iconUrl.value || undefined,
+                shortDescription: form.shortDescription.value || undefined,
+                description: form.description.value || undefined,
+                featured: form.featured.checked,
+                active: form.active.checked,
+                sourceUrls: currentEditApp.sourceUrls // Pass the updated source URLs
             };
             
+            // Handle screenshots from textarea
+            const screenshotsInput = document.getElementById('edit-screenshots').value;
+            if (screenshotsInput) {
+                updatedData.screenshots = screenshotsInput.split(',').map(url => url.trim()).filter(url => url).map((url, index) => ({
+                    imageUrl: url,
+                    caption: `Screenshot ${index + 1}`,
+                    displayOrder: index
+                }));
+            } else {
+                updatedData.screenshots = [];
+            }
+
             try {
-                const response = await fetch('/api/add-app', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'add-manual',
-                        appData: appData
-                    })
+                const response = await fetch(`${API_BASE}/add-app?id=${appId}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${prompt('Enter Admin Password:')}` // Basic auth
+                    },
+                    body: JSON.stringify(updatedData)
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    showMessage(`App "${result.app.title}" added successfully!`, 'success');
-                    e.target.reset();
+                    showMessage(`App "${result.app.title}" updated successfully!`, 'success');
+                    closeEditModal();
+                    loadApps(); // Reload apps list
                 } else {
                     showMessage(`Error: ${result.error}`, 'error');
                 }
@@ -592,25 +936,37 @@
                 showMessage(`Network error: ${error.message}`, 'error');
             }
         });
-        
-        // Allow Enter key to add URLs
-        document.getElementById('store-url-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                addStoreUrl();
+
+        function deleteApp() {
+            if (!currentEditApp) return;
+
+            if (confirm(`Are you sure you want to delete \'${currentEditApp.title}\'? This cannot be undone.`)) {
+                fetch(`${API_BASE}/add-app?id=${currentEditApp.id}`, {
+                    method: 'DELETE',
+                    headers: { 
+                        'Authorization': `Bearer ${prompt('Enter Admin Password:')}` // Basic auth
+                    }
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        showMessage(`App \'${currentEditApp.title}\' deleted successfully!`, 'success');
+                        closeEditModal();
+                        loadApps();
+                    } else {
+                        showMessage(`Error deleting app: ${result.error}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage(`Network error: ${error.message}`, 'error');
+                });
             }
-        });
-        
-        function showMessage(message, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
-            setTimeout(() => {
-                messageDiv.innerHTML = '';
-            }, 5000);
         }
-        
-        // Load apps on page load
+
+        // Initial load
         document.addEventListener('DOMContentLoaded', () => {
-            loadApps();
+            showTab('scrape', { target: document.querySelector('.tab.active') }); // Activate scrape tab on load
+            updateUrlList(); // Render empty URL list initially
         });
     </script>
 </body>
