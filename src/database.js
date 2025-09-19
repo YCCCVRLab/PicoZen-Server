@@ -245,7 +245,7 @@ const dbHelpers = {
 
             const { rows } = await pool.query(`
                 INSERT INTO apps (
-                    package_name, title, description, shortDescription, version, version_code,
+                    package_name, title, description, short_description, version, version_code,
                     category, developer, file_size, download_url, icon_url
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 RETURNING id
@@ -298,6 +298,4 @@ const dbHelpers = {
     }
 };
 
-module.exports = initDatabase; // Export initDatabase directly
-module.exports.getDB = getDB; // Also export getDB
-module.exports.dbHelpers = dbHelpers; // Also export dbHelpers
+module.exports = { initDatabase, getDB, dbHelpers }; // Export as an object
