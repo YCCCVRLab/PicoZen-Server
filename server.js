@@ -14,14 +14,15 @@ const adminRoutes = require('./src/routes/admin');
 const { errorHandler, notFound } = require('./src/middleware/errorHandlers');
 
 const app = express();
+const PORT = process.env.PORT || 3000; // Use PORT environment variable for Vercel
 
-// Database initialization for serverless
+// Database initialization
 let dbInitialized = false;
 
 async function ensureDatabase() {
     if (!dbInitialized) {
         try {
-            console.log('🔄 Initializing database for Vercel...');
+            console.log('🔄 Initializing database...');
             await initDatabase();
             console.log('✅ Database initialized successfully');
             dbInitialized = true;
@@ -35,18 +36,18 @@ async function ensureDatabase() {
 // Security middleware
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false // Allow inline scripts for admin panel
+    contentSecurityPolicy: false
 }));
 
-// Enhanced CORS configuration for VR app compatibility
+// Enhanced CORS configuration
 app.use(cors({
-    origin: true, // Allow all origins
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
 }));
 
-// Handle preflight requests explicitly
+// Handle preflight requests
 app.options('*', (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -54,19 +55,18 @@ app.options('*', (req, res) => {
     res.sendStatus(200);
 });
 
-// Rate limiting - more generous for VR apps
+// Rate limiting
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 2000, // Higher limit for VR headsets
+    windowMs: 15 * 60 * 1000,
+    max: 2000,
     message: { error: 'Too many requests from this IP, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        // Skip rate limiting for health checks
-        return req.path === '/api/health' || req.path === '/api/test';
+        return req.path === '/api/health' || req.path === '/health';
     }
 });
-app.use('/api/', limiter);
+app.use(limiter);
 
 // Body parsing and compression
 app.use(compression());
@@ -78,7 +78,18 @@ if (process.env.NODE_ENV !== 'production') {
     app.use(morgan('dev'));
 }
 
-// Health check endpoint - critical for VR app connectivity
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ 
+        success: true,
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        server: 'PicoZen-Server-Vercel',
+        version: '1.0.1',
+        database: dbInitialized ? 'ready' : 'initializing'
+    });
+});
+
 app.get('/api/health', (req, res) => {
     res.json({ 
         success: true,
@@ -90,19 +101,36 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Test endpoint for debugging VR app issues
-app.get('/api/test', (req, res) => {
+// Test endpoint
+app.get('/test', (req, res) => {
     res.json({
         success: true,
         message: 'PicoZen Server is running on Vercel!',
         timestamp: new Date().toISOString(),
-        platform: 'Vercel Serverless',
+        platform: 'Vercel Server',
+        endpoints: {
+            health: '/health',
+            apps: '/apps',
+            categories: '/categories',
+            search: '/search',
+            admin: '/admin'
+        },
+        cors: 'enabled',
+        database: dbInitialized ? 'connected' : 'connecting'
+    });
+});
+
+app.get('/api/test', (req, res) => {
+    res.json({
+        success: true,
+        message: 'PicoZen Server API is working on Vercel!',
+        timestamp: new Date().toISOString(),
+        platform: 'Vercel Server',
         endpoints: {
             health: '/api/health',
             apps: '/api/apps',
             categories: '/api/categories',
             search: '/api/search',
-            download: '/api/download/:id',
             admin: '/admin'
         },
         cors: 'enabled',
@@ -117,18 +145,20 @@ app.use(async (req, res, next) => {
         next();
     } catch (error) {
         console.error('Database middleware error:', error);
-        // Continue anyway, some endpoints might still work
         next();
     }
 });
 
-// Static file serving for uploads
+// Static file serving for uploads (if needed, adjust paths)
 app.use('/images', express.static(path.join(__dirname, 'uploads/images')));
 app.use('/files', express.static(path.join(__dirname, 'uploads/files')));
 
 // API Routes
 app.use('/api', apiRoutes);
 app.use('/admin', adminRoutes);
+
+// Direct routes (without /api prefix)
+app.use('/', apiRoutes);
 
 // Root endpoint - serve store interface
 app.get('/', async (req, res) => {
@@ -198,11 +228,6 @@ app.get('/', async (req, res) => {
                     }
                     .footer h3 { color: #667eea; margin-bottom: 10px; }
                     .footer p { color: #888; margin: 5px 0; }
-                    @media (max-width: 768px) {
-                        .title { font-size: 2.5rem; }
-                        .container { padding: 20px 15px; }
-                        .status-card { padding: 25px; }
-                    }
                 </style>
             </head>
             <body>
@@ -210,7 +235,7 @@ app.get('/', async (req, res) => {
                     <div class="header">
                         <div class="logo">🥽</div>
                         <h1 class="title">PicoZen Server</h1>
-                        <p class="subtitle">VR App Store Backend - Now Running on Vercel!</p>
+                        <p class="subtitle">VR App Store Backend - Running on Vercel!</p>
                     </div>
                     
                     <div class="status-card">
@@ -220,7 +245,7 @@ app.get('/', async (req, res) => {
                         </div>
                         
                         <div class="badges">
-                            <div class="badge">🚀 Vercel Deployment</div>
+                            <div class="badge">🚀 Vercel Server</div>
                             <div class="badge">📏 File Size Fixed</div>
                             <div class="badge">🥽 VR Compatible</div>
                             <div class="badge">🔄 Auto-Scaling</div>
@@ -228,20 +253,18 @@ app.get('/', async (req, res) => {
                         
                         <div class="endpoints">
                             <h4>📡 API Endpoints Available:</h4>
-                            <div class="endpoint">GET /api/health - Server Health Check</div>
-                            <div class="endpoint">GET /api/apps - List VR Applications</div>
-                            <div class="endpoint">GET /api/categories - App Categories</div>
-                            <div class="endpoint">GET /api/download/:id - Download APK Files</div>
-                            <div class="endpoint">POST /api/scrape - Add Apps from Store URLs</div>
+                            <div class="endpoint">GET /health - Server Health Check</div>
+                            <div class="endpoint">GET /apps - List VR Applications</div>
+                            <div class="endpoint">GET /categories - App Categories</div>
                             <div class="endpoint">GET /admin - Admin Management Panel</div>
                         </div>
                     </div>
                     
                     <div class="actions">
                         <a href="/admin" class="btn">🛠️ Admin Panel</a>
-                        <a href="/api/apps" class="btn">📱 View Apps API</a>
-                        <a href="/api/health" class="btn">💚 Health Check</a>
-                        <a href="/api/test" class="btn">🧪 Test Endpoint</a>
+                        <a href="/apps" class="btn">📱 View Apps</a>
+                        <a href="/health" class="btn">💚 Health Check</a>
+                        <a href="/test" class="btn">🧪 Test Endpoint</a>
                     </div>
                 </div>
                 
@@ -249,9 +272,6 @@ app.get('/', async (req, res) => {
                     <h3>YCCC VR Lab</h3>
                     <p>Room 112, Wells Campus</p>
                     <p>Building the Future of VR Education 🎓</p>
-                    <p style="margin-top: 20px; font-size: 0.9rem;">
-                        Server migrated from Netlify to Vercel for better performance and reliability
-                    </p>
                 </div>
                 
                 <script>
@@ -259,8 +279,8 @@ app.get('/', async (req, res) => {
                     console.log('🔄 Testing PicoZen Server connectivity...');
                     
                     Promise.all([
-                        fetch('/api/health').then(r => r.json()),
-                        fetch('/api/test').then(r => r.json())
+                        fetch('/health').then(r => r.json()),
+                        fetch('/test').then(r => r.json())
                     ])
                     .then(([health, test]) => {
                         console.log('✅ Health Check:', health);
@@ -287,14 +307,9 @@ app.get('/', async (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// For Vercel deployment
-if (process.env.VERCEL) {
-    module.exports = app;
-} else {
-    // For local development
-    const PORT = process.env.PORT || 3000;
-    
-    async function startServer() {
+// Start server if not in Vercel environment (local dev)
+if (!process.env.VERCEL) {
+    async function startLocalServer() {
         try {
             await ensureDatabase();
             
@@ -306,10 +321,12 @@ if (process.env.VERCEL) {
                 console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
             });
         } catch (error) {
-            console.error('❌ Failed to start server:', error);
+            console.error('❌ Failed to start local server:', error);
             process.exit(1);
         }
     }
-    
-    startServer();
+    startLocalServer();
 }
+
+// Export app for Vercel deployment (if VERCEL environment variable is set)
+module.exports = app;
