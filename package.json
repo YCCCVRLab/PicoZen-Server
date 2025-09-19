@@ -1,7 +1,7 @@
 {
   "name": "picozen-server",
   "version": "1.0.1",
-  "description": "Complete PicoZen VR app store backend - Vercel deployment",
+  "description": "Complete PicoZen VR app store backend - Vercel deployment with PostgreSQL",
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js",
@@ -17,7 +17,9 @@
     "serverless",
     "oculus",
     "quest",
-    "pico"
+    "pico",
+    "postgresql",
+    "supabase"
   ],
   "author": "YCCC VR Lab",
   "license": "GPL-3.0",
@@ -30,8 +32,7 @@
     "express-rate-limit": "^6.8.1",
     "dotenv": "^16.3.1",
     "axios": "^1.5.0",
-    "cheerio": "^1.0.0-rc.12",
-    "sqlite3": "^5.1.7" 
+    "cheerio": "^1.0.0-rc.12"
   },
   "engines": {
     "node": "22.x"
@@ -43,5 +44,4 @@
   "bugs": {
     "url": "https://github.com/YCCCVRLab/PicoZen-Server/issues"
   },
-  "homepage": "https://github.com/YCCCVRLab/PicoZen-Server#readme"
-}
+  "homepage": "https://github.com/YCCCVRLab/PicoZen-Server#readme\"\n}\n
