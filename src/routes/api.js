@@ -2,7 +2,8 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
 const axios = require('axios');
-const { getApps, getApp, recordDownload, getCategories } = require('../database');
+// Import the entire database module, then access dbHelpers
+const database = require('../database'); 
 const { scrapeAppFromUrl, getFileSizeFromUrl, formatFileSize, parseFileSize } = require('../scrapers');
 
 const router = express.Router();
@@ -11,7 +12,7 @@ const router = express.Router();
 router.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type', 'Accept', 'Authorization');
     
     if (req.method === 'OPTIONS') {
         res.sendStatus(200);
@@ -92,7 +93,8 @@ router.get('/apps', async (req, res) => {
             });
         }
         
-        const result = await getApps(pageNum, limitNum, category, search);
+        // Access getApps from database.dbHelpers
+        const result = await database.dbHelpers.getApps(pageNum, limitNum, category, search);
         
         // Transform data for API response with proper file size formatting
         const transformedApps = result.apps.map(app => {
@@ -158,7 +160,8 @@ router.get('/apps/:id', async (req, res) => {
             });
         }
         
-        const app = await getApp(appId);
+        // Access getApp from database.dbHelpers
+        const app = await database.dbHelpers.getApp(appId);
         
         if (!app) {
             return res.status(404).json({
@@ -226,7 +229,8 @@ router.get('/download/:id', async (req, res) => {
             });
         }
         
-        const app = await getApp(appId);
+        // Access getApp from database.dbHelpers
+        const app = await database.dbHelpers.getApp(appId);
         
         if (!app) {
             return res.status(404).json({
@@ -240,7 +244,8 @@ router.get('/download/:id', async (req, res) => {
         const userAgent = req.get('User-Agent');
         
         try {
-            await recordDownload(appId, clientIp, userAgent);
+            // Access recordDownload from database.dbHelpers
+            await database.dbHelpers.recordDownload(appId, clientIp, userAgent);
         } catch (downloadError) {
             console.error('Error recording download:', downloadError);
             // Don't fail the download if we can't record it
@@ -296,11 +301,8 @@ router.get('/download/:id', async (req, res) => {
                         error: 'APK file not found on server'
                     });
                 }
-            }
-        }
-        
-        // No valid download URL
-        res.status(404).json({
+            }\n        }\n        
+        // No valid download URL\n        res.status(404).json({
             success: false,
             error: 'Download not available for this app'
         });
@@ -318,7 +320,8 @@ router.get('/download/:id', async (req, res) => {
 // Get categories
 router.get('/categories', async (req, res) => {
     try {
-        const categories = await getCategories();
+        // Access getCategories from database.dbHelpers
+        const categories = await database.dbHelpers.getCategories();
         
         const transformedCategories = categories.map(cat => ({
             id: cat.id,
@@ -364,7 +367,8 @@ router.get('/search', async (req, res) => {
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         
-        const result = await getApps(pageNum, limitNum, category, query.trim());
+        // Access getApps from database.dbHelpers
+        const result = await database.dbHelpers.getApps(pageNum, limitNum, category, query.trim());
         
         // Transform data for API response
         const transformedApps = result.apps.map(app => {
@@ -418,7 +422,8 @@ router.get('/featured', async (req, res) => {
         const { limit = 10 } = req.query;
         const limitNum = parseInt(limit);
         
-        const result = await getApps(1, limitNum);
+        // Access getApps from database.dbHelpers
+        const result = await database.dbHelpers.getApps(1, limitNum);
         
         // Filter only featured apps
         const featuredApps = result.apps
@@ -466,58 +471,38 @@ router.get('/featured', async (req, res) => {
 // Get app statistics
 router.get('/stats', async (req, res) => {
     try {
-        const { getDB } = require('../database');
-        const db = getDB();
+        const db = database.getDB(); // Access getDB from the module
         
         // Get various statistics
         const stats = await new Promise((resolve, reject) => {
             const queries = [
-                'SELECT COUNT(*) as totalApps FROM apps WHERE active = 1',
+                'SELECT COUNT(*) as totalApps FROM apps WHERE active = TRUE',
                 'SELECT COUNT(*) as totalDownloads FROM downloads',
-                'SELECT COUNT(DISTINCT category) as totalCategories FROM apps WHERE active = 1',
-                'SELECT SUM(file_size) as totalSize FROM apps WHERE active = 1'
+                'SELECT COUNT(DISTINCT category) as totalCategories FROM apps WHERE active = TRUE',
+                'SELECT SUM(file_size) as totalSize FROM apps WHERE active = TRUE'
             ];
             
             let results = {};
             let completed = 0;
             
-            // Total apps
-            db.get(queries[0], [], (err, row) => {
-                if (err) reject(err);
-                results.totalApps = row.totalApps;
-                if (++completed === queries.length) resolve(results);
-            });
-            
-            // Total downloads
-            db.get(queries[1], [], (err, row) => {
-                if (err) reject(err);
-                results.totalDownloads = row.totalDownloads;
-                if (++completed === queries.length) resolve(results);
-            });
-            
-            // Total categories
-            db.get(queries[2], [], (err, row) => {
-                if (err) reject(err);
-                results.totalCategories = row.totalCategories;
-                if (++completed === queries.length) resolve(results);
-            });
-            
-            // Total size
-            db.get(queries[3], [], (err, row) => {
-                if (err) reject(err);
-                results.totalSize = row.totalSize || 0;
-                if (++completed === queries.length) resolve(results);
+            queries.forEach(queryText => {
+                db.query(queryText, [], (err, res) => {
+                    if (err) return reject(err);
+                    Object.assign(results, res.rows[0]);
+                    completed++;
+                    if (completed === queries.length) resolve(results);
+                });
             });
         });
         
         res.json({
             success: true,
             stats: {
-                totalApps: stats.totalApps,
-                totalDownloads: stats.totalDownloads,
-                totalCategories: stats.totalCategories,
-                totalSizeBytes: stats.totalSize,
-                totalSizeFormatted: formatFileSize(stats.totalSize)
+                totalApps: parseInt(stats.totalapps),
+                totalDownloads: parseInt(stats.totaldownloads),
+                totalCategories: parseInt(stats.totalcategories),
+                totalSizeBytes: parseInt(stats.totalsize) || 0,
+                totalSizeFormatted: formatFileSize(parseInt(stats.totalsize) || 0)
             }
         });
         
