@@ -2,10 +2,10 @@
   "name": "picozen-server",
   "version": "1.0.1",
   "description": "Complete PicoZen VR app store backend - Vercel deployment",
-  "main": "server.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "start": "node api/index.js",
+    "dev": "node api/index.js",
     "build": "echo 'Vercel handles the build'",
     "vercel-build": "echo 'Build complete'"
   },
@@ -34,7 +34,7 @@
     "better-sqlite3": "^8.7.0"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "repository": {
     "type": "git",
