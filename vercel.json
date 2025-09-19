@@ -8,9 +8,7 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production",
-    "DATABASE_URL": "postgresql://postgres:NMMDwSN3c8wGuxMu@db.elragqsejbarytfkiyxc.supabase.co:5432/postgres",
-    "ADMIN_PASSWORD": "yccc-vr-lab-2025"
+    "NODE_ENV": "production"
   },
   "functions": {
     "api/index.js": {
