@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
@@ -65,7 +65,7 @@ const schema = {
 
 // Initialize database
 async function initDatabase() {
-    try {
+    return new Promise((resolve, reject) => {
         const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'picozen.db');
         
         // Ensure data directory exists
@@ -75,39 +75,44 @@ async function initDatabase() {
         }
         
         // Create database connection
-        db = new Database(dbPath);
-        
-        console.log('Connected to SQLite database:', dbPath);
-        
-        // Enable foreign keys
-        db.pragma('foreign_keys = ON');
-        
-        // Create tables
-        Object.keys(schema).forEach(tableName => {
-            try {
-                db.exec(schema[tableName]);
-                console.log(`✅ Table ${tableName} created/verified`);
-            } catch (error) {
-                console.error(`Error creating table ${tableName}:`, error);
-                throw error;
+        db = new sqlite3.Database(dbPath, (err) => {
+            if (err) {
+                console.error('Error opening database:', err);
+                reject(err);
+                return;
             }
+            
+            console.log('Connected to SQLite database:', dbPath);
+            
+            // Enable foreign keys
+            db.run('PRAGMA foreign_keys = ON');
+            
+            // Create tables
+            const tableNames = Object.keys(schema);
+            let completed = 0;
+            
+            tableNames.forEach(tableName => {
+                db.run(schema[tableName], (err) => {
+                    if (err) {
+                        console.error(`Error creating table ${tableName}:`, err);
+                        reject(err);
+                        return;
+                    }
+                    
+                    completed++;
+                    if (completed === tableNames.length) {
+                        console.log('✅ All database tables created successfully');
+                        seedDefaultData().then(resolve).catch(reject);
+                    }
+                });
+            });
         });
-        
-        // Seed default data
-        await seedDefaultData();
-        
-        console.log('✅ Database initialized successfully');
-        return true;
-        
-    } catch (error) {
-        console.error('❌ Database initialization failed:', error);
-        throw error;
-    }
+    });
 }
 
 // Seed default data
 async function seedDefaultData() {
-    try {
+    return new Promise((resolve, reject) => {
         // Insert default categories
         const defaultCategories = [
             { name: 'Games', description: 'VR Games and Entertainment', icon_url: '/images/categories/games.png' },
@@ -119,20 +124,32 @@ async function seedDefaultData() {
             { name: 'Tools', description: 'System Utilities and Tools', icon_url: '/images/categories/tools.png' }
         ];
         
-        const insertCategory = db.prepare(`
-            INSERT OR IGNORE INTO categories (name, description, icon_url, display_order) 
-            VALUES (?, ?, ?, ?)
-        `);
+        let completed = 0;
+        const total = defaultCategories.length;
+        
+        if (total === 0) {
+            resolve();
+            return;
+        }
         
         defaultCategories.forEach((category, index) => {
-            insertCategory.run(category.name, category.description, category.icon_url, index);
+            db.run(
+                'INSERT OR IGNORE INTO categories (name, description, icon_url, display_order) VALUES (?, ?, ?, ?)',
+                [category.name, category.description, category.icon_url, index],
+                (err) => {
+                    if (err) {
+                        console.error('Error inserting category:', err);
+                    }
+                    
+                    completed++;
+                    if (completed === total) {
+                        console.log('✅ Default categories seeded');
+                        resolve();
+                    }
+                }
+            );
         });
-        
-        console.log('✅ Default categories seeded');
-        
-    } catch (error) {
-        console.error('Error seeding default data:', error);
-    }
+    });
 }
 
 // Get database instance
@@ -147,7 +164,7 @@ function getDB() {
 const dbHelpers = {
     // Get all apps with pagination
     getApps: (page = 1, limit = 20, category = null, search = null) => {
-        try {
+        return new Promise((resolve, reject) => {
             const offset = (page - 1) * limit;
             let query = `
                 SELECT 
@@ -173,131 +190,122 @@ const dbHelpers = {
             query += ' ORDER BY a.featured DESC, a.download_count DESC, a.created_at DESC LIMIT ? OFFSET ?';
             params.push(limit, offset);
             
-            const apps = db.prepare(query).all(...params);
-            
-            // Get total count for pagination
-            let countQuery = 'SELECT COUNT(*) as total FROM apps WHERE active = 1';
-            const countParams = [];
-            
-            if (category) {
-                countQuery += ' AND category = ?';
-                countParams.push(category);
-            }
-            
-            if (search) {
-                countQuery += ' AND (title LIKE ? OR description LIKE ? OR developer LIKE ?)';
-                countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-            }
-            
-            const countResult = db.prepare(countQuery).get(...countParams);
-            
-            return {
-                apps,
-                pagination: {
-                    page,
-                    limit,
-                    total: countResult.total,
-                    pages: Math.ceil(countResult.total / limit)
+            db.all(query, params, (err, rows) => {
+                if (err) {
+                    reject(err);
+                    return;
                 }
-            };
-            
-        } catch (error) {
-            console.error('Error getting apps:', error);
-            throw error;
-        }
+                
+                // Get total count for pagination
+                let countQuery = 'SELECT COUNT(*) as total FROM apps WHERE active = 1';
+                const countParams = [];
+                
+                if (category) {
+                    countQuery += ' AND category = ?';
+                    countParams.push(category);
+                }
+                
+                if (search) {
+                    countQuery += ' AND (title LIKE ? OR description LIKE ? OR developer LIKE ?)';
+                    countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+                }
+                
+                db.get(countQuery, countParams, (err, countRow) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }\n                    
+                    resolve({
+                        apps: rows,
+                        pagination: {
+                            page,
+                            limit,
+                            total: countRow.total,
+                            pages: Math.ceil(countRow.total / limit)
+                        }
+                    });
+                });
+            });
+        });
     },
     
     // Get single app with screenshots
     getApp: (id) => {
-        try {
-            const app = db.prepare('SELECT * FROM apps WHERE id = ? AND active = 1').get(id);
-            
-            if (!app) {
-                return null;
-            }
-            
-            // Get screenshots
-            const screenshots = db.prepare('SELECT * FROM screenshots WHERE app_id = ? ORDER BY display_order').all(id);
-            app.screenshots = screenshots;
-            
-            return app;
-            
-        } catch (error) {
-            console.error('Error getting app:', error);
-            throw error;
-        }
+        return new Promise((resolve, reject) => {
+            db.get('SELECT * FROM apps WHERE id = ? AND active = 1', [id], (err, app) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                
+                if (!app) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Get screenshots
+                db.all(
+                    'SELECT * FROM screenshots WHERE app_id = ? ORDER BY display_order',
+                    [id],
+                    (err, screenshots) => {
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
+                        
+                        app.screenshots = screenshots;
+                        resolve(app);
+                    }
+                );
+            });
+        });
     },
     
     // Add new app
     addApp: (appData) => {
-        try {
+        return new Promise((resolve, reject) => {
             const {
                 packageName, title, description, shortDescription, version, versionCode,
                 category, developer, fileSize, downloadUrl, iconUrl
             } = appData;
             
-            const insert = db.prepare(`
+            db.run(`
                 INSERT INTO apps (
                     package_name, title, description, short_description, version, version_code,
                     category, developer, file_size, download_url, icon_url
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-            
-            const result = insert.run(
-                packageName, title, description, shortDescription, version, versionCode,
-                category, developer, fileSize, downloadUrl, iconUrl
-            );
-            
-            return result.lastInsertRowid;
-            
-        } catch (error) {
-            console.error('Error adding app:', error);
-            throw error;
-        }
+            `, [\n                packageName, title, description, shortDescription, version, versionCode,\n                category, developer, fileSize, downloadUrl, iconUrl\n            ], function(err) {\n                if (err) {\n                    reject(err);\n                    return;\n                }\n                resolve(this.lastID);\n            });\n        });
     },
     
     // Record download
     recordDownload: (appId, ipAddress, userAgent) => {
-        try {
-            const insertDownload = db.prepare('INSERT INTO downloads (app_id, ip_address, user_agent) VALUES (?, ?, ?)');
-            const updateCount = db.prepare('UPDATE apps SET download_count = download_count + 1 WHERE id = ?');
-            
-            // Use transaction for consistency
-            const transaction = db.transaction(() => {
-                insertDownload.run(appId, ipAddress, userAgent);
-                updateCount.run(appId);
-            });
-            
-            transaction();
-            
-        } catch (error) {
-            console.error('Error recording download:', error);
-            throw error;
-        }
+        return new Promise((resolve, reject) => {
+            db.run(
+                'INSERT INTO downloads (app_id, ip_address, user_agent) VALUES (?, ?, ?)',
+                [appId, ipAddress, userAgent],
+                function(err) {
+                    if (err) {\n                        reject(err);\n                        return;\n                    }\n                    \n                    // Update download count\n                    db.run(
+                        'UPDATE apps SET download_count = download_count + 1 WHERE id = ?',
+                        [appId],
+                        (err) => {
+                            if (err) {\n                                reject(err);\n                                return;\n                            }\n                            resolve();
+                        }\n                    );
+                }\n            );
+        });
     },
     
     // Get categories
     getCategories: () => {
-        try {
-            const categories = db.prepare(`
-                SELECT *, 
-                (SELECT COUNT(*) FROM apps WHERE category = categories.name AND active = 1) as app_count 
-                FROM categories 
-                WHERE active = 1 
-                ORDER BY display_order
-            `).all();
-            
-            return categories;
-            
-        } catch (error) {
-            console.error('Error getting categories:', error);
-            throw error;
-        }
+        return new Promise((resolve, reject) => {
+            db.all(
+                'SELECT *, (SELECT COUNT(*) FROM apps WHERE category = categories.name AND active = 1) as app_count FROM categories WHERE active = 1 ORDER BY display_order',
+                [],
+                (err, rows) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }\n                    resolve(rows);
+                }\n            );
+        });
     }
-};
-
-module.exports = {
-    initDatabase,
-    getDB,
-    ...dbHelpers
 };
