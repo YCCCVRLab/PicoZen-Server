@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
-const { addApp, getApp, getApps, getDB } = require('../database');
+const database = require('../database'); // Import the entire database module
 const { scrapeAppFromUrl, getFileSizeFromUrl, formatFileSize, parseFileSize } = require('../scrapers');
 
 const router = express.Router();
@@ -481,7 +481,7 @@ router.post('/apps', requireAuth, async (req, res) => {
             iconUrl
         };
         
-        const appId = await addApp(appData);
+        const appId = await database.dbHelpers.addApp(appData); // Access addApp from database.dbHelpers
         
         console.log(`Added app: ${title} (ID: ${appId}) - File size: ${fileSizeBytes ? formatFileSize(fileSizeBytes) : 'Unknown'}`);
         
@@ -532,7 +532,7 @@ router.put('/apps/:id', requireAuth, async (req, res) => {
             }
         }
         
-        const db = getDB();
+        const db = database.getDB(); // Access getDB from the module
         const setClause = Object.keys(updates)
             .map(key => `${key} = $1`)
             .join(', ');
@@ -573,7 +573,7 @@ router.delete('/apps/:id', requireAuth, async (req, res) => {
             });
         }
         
-        const db = getDB();
+        const db = database.getDB(); // Access getDB from the module
         
         await db.query(
             'UPDATE apps SET active = FALSE WHERE id = $1',
