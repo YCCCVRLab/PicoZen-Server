@@ -16,6 +16,9 @@ const { errorHandler, notFound } = require('./src/middleware/errorHandlers');
 const app = express();
 const PORT = process.env.PORT || 3000; // Use PORT environment variable for Vercel
 
+// IMPORTANT: Trust proxy headers for Vercel deployment
+app.set('trust proxy', true); // Set to true to trust all proxies (safe in Vercel)
+
 // Database initialization
 let dbInitialized = false;
 
