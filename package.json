@@ -24,7 +24,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     "@netlify/functions": "^2.4.0",
-    "@netlify/blobs": "^1.0.0",  // <--- ADD THIS LINE
+    "@netlify/blobs": "^1.0.0",
     "@octokit/rest": "^20.0.2",
     "node-fetch": "^2.7.0"
   },
