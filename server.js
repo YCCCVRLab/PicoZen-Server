@@ -8,7 +8,7 @@ const fs = require('fs').promises;
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const { initDatabase, getDB } = require('./src/database');
+const database = require('./src/database'); // Import the entire module
 const apiRoutes = require('./src/routes/api');
 const adminRoutes = require('./src/routes/admin');
 const { errorHandler, notFound } = require('./src/middleware/errorHandlers');
@@ -23,7 +23,7 @@ async function ensureDatabase() {
     if (!dbInitialized) {
         try {
             console.log('🔄 Initializing database...');
-            await initDatabase();
+            await database.initDatabase(); // Call initDatabase from the module
             console.log('✅ Database initialized successfully');
             dbInitialized = true;
         } catch (error) {
@@ -51,7 +51,7 @@ app.use(cors({
 app.options('*', (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With', 'Content-Type', 'Accept', 'Authorization');
     res.sendStatus(200);
 });
 
