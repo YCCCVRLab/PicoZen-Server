@@ -1,4 +1,4 @@
-// Simple download endpoint without Netlify Blobs for now
+// Download endpoint - only for apps with real APK files
 
 function getDefaultApps() {
   return [
@@ -8,28 +8,8 @@ function getDefaultApps() {
       title: 'UbiSim',
       downloadUrl: 'https://ubisimstreamingprod.blob.core.windows.net/builds/UbiSimPlayer-1.18.0.157.apk?sv=2023-11-03&spr=https,http&se=2026-01-22T13%3A54%3A34Z&sr=b&sp=r&sig=fWimVufXCv%2BG6peu4t4R1ooXF37BEGVm2IS9e%2Fntw%2BI%3D',
       active: true
-    },
-    {
-      id: 2,
-      packageName: 'com.oculus.browser',
-      title: 'Oculus Browser',
-      downloadUrl: 'https://www.meta.com/experiences/1216061938549734/',
-      active: true
-    },
-    {
-      id: 3,
-      packageName: 'com.vrchat.mobile',
-      title: 'VRChat',
-      downloadUrl: 'https://www.meta.com/experiences/1905351616291543/',
-      active: true
-    },
-    {
-      id: 4,
-      packageName: 'com.unity.template.vr',
-      title: 'Unity VR Template',
-      downloadUrl: 'https://unity.com/unity/features/vr',
-      active: true
     }
+    // Only include apps with real, working APK download URLs
   ];
 }
 
@@ -68,7 +48,10 @@ exports.handler = async (event, context) => {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           error: 'App ID required',
-          usage: 'GET /api/download/{appId}'
+          usage: 'GET /api/download/{appId}',
+          availableApps: [
+            { id: 1, title: 'UbiSim', hasAPK: true }
+          ]
         })
       };
     }
@@ -81,8 +64,9 @@ exports.handler = async (event, context) => {
         statusCode: 404,
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          error: 'App not found',
-          appId: appId
+          error: 'App not found or no APK available',
+          appId: appId,
+          availableApps: apps.map(a => ({ id: a.id, title: a.title }))
         })
       };
     }
@@ -94,7 +78,8 @@ exports.handler = async (event, context) => {
         body: JSON.stringify({ 
           error: 'Download URL not available for this app',
           appId: appId,
-          appTitle: app.title
+          appTitle: app.title,
+          message: 'This app does not have a real APK file available for download'
         })
       };
     }
