@@ -1,27 +1,23 @@
 {
   "name": "picozen-server",
   "version": "1.0.1",
-  "description": "Complete PicoZen VR app store backend with fixed file size handling",
+  "description": "Complete PicoZen VR app store backend - Vercel deployment",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "netlify-dev": "netlify dev",
-    "build": "echo 'No build step required'",
-    "deploy": "netlify deploy --prod",
-    "test": "echo 'No tests specified'",
-    "db:init": "node -e \"require('./src/database').initDatabase().then(() => console.log('Database initialized')).catch(console.error)\""
+    "dev": "node server.js",
+    "build": "echo 'Vercel handles the build'",
+    "vercel-build": "echo 'Build complete'"
   },
   "keywords": [
     "vr",
-    "app-store",
+    "app-store", 
     "picozen",
+    "vercel",
+    "serverless",
     "oculus",
     "quest",
-    "pico",
-    "sidequest",
-    "steam-vr",
-    "file-size-fix"
+    "pico"
   ],
   "author": "YCCC VR Lab",
   "license": "GPL-3.0",
@@ -33,22 +29,12 @@
     "morgan": "^1.10.0",
     "express-rate-limit": "^6.8.1",
     "dotenv": "^16.3.1",
-    "sqlite3": "^5.1.6",
     "axios": "^1.5.0",
     "cheerio": "^1.0.0-rc.12",
-    "multer": "^1.4.5-lts.1",
-    "sharp": "^0.32.5",
-    "@netlify/functions": "^2.4.0",
-    "@netlify/blobs": "^1.0.0",
-    "@octokit/rest": "^20.0.2",
-    "node-fetch": "^2.7.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1",
-    "netlify-cli": "^17.0.0"
+    "better-sqlite3": "^8.7.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   },
   "repository": {
     "type": "git",
