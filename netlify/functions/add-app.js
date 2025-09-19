@@ -277,7 +277,7 @@ function extractSteamScreenshots(html) {
   const matches = html.match(/<a[^>]+class="highlight_screenshot_link"[^>]+href="([^"]+)"/g) || [];
   matches.forEach((match, index) => {
     const urlMatch = match.match(/href="([^"]+)"/);
-    if (urlMatch && index < 5) {
+    if (urlMatch && index < 5) { // Limit to 5 screenshots
       screenshots.push({
         imageUrl: urlMatch[1],
         caption: `Screenshot ${index + 1}`,
@@ -426,8 +426,7 @@ exports.handler = async (event, context) => {
           } else {
             console.log('Skipping failed scrape for URL:', url);
           }
-        }
-
+        }\n
         await setAppData({ apps, nextId });
 
         return {
@@ -442,99 +441,7 @@ exports.handler = async (event, context) => {
               developer: app.developer,
               category: app.category,
               sourceStore: Object.keys(app.sourceUrls).find(key => app.sourceUrls[key])
-            }))
-          })
-        };
-
-      } else if (requestData.action === 'add-manual') {
-        const { appData } = requestData;
-        
-        const newApp = {
-          id: nextId++,
-          packageName: appData.packageName || generatePackageName(appData.title, appData.developer),
-          title: appData.title,
-          description: appData.description,
-          shortDescription: appData.shortDescription || appData.description?.substring(0, 200),
-          version: appData.version || '1.0.0',
-          versionCode: appData.versionCode || 1,
-          category: appData.category || 'Games',
-          developer: appData.developer,
-          rating: appData.rating || 0,
-          downloadCount: appData.downloadCount || 0,
-          fileSize: appData.fileSize || null,
-          downloadUrl: appData.downloadUrl,
-          iconUrl: appData.iconUrl,
-          featured: appData.featured || false,
-          active: true,
-          sourceUrls: appData.sourceUrls || {},
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          screenshots: appData.screenshots || []
-        };
-
-        apps.push(newApp);
-        await setAppData({ apps, nextId });
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            message: 'App added successfully',
-            app: newApp
-          })
-        };
-      }
-
-    } catch (error) {
-      console.error('Add app error:', error);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({
-          error: 'Internal server error',
-          message: error.message
-        })
-      };
-    }
-  }
-
-  if (httpMethod === 'PUT') {
-    try {
-      const { id } = queryStringParameters;
-      const appId = parseInt(id);
-      const updatedData = JSON.parse(body);
-
-      const appIndex = apps.findIndex(app => app.id === appId);
-      if (appIndex === -1) {
-        return { statusCode: 404, headers, body: JSON.stringify({ error: 'App not found' }) };
-      }
-
-      // Merge existing data with updated data
-      apps[appIndex] = {
-        ...apps[appIndex],
-        ...updatedData,
-        updatedAt: new Date().toISOString()
-      };
-
-      await setAppData({ apps, nextId });
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ success: true, message: 'App updated successfully', app: apps[appIndex] })
-      };
-
-    } catch (error) {
-      console.error('Update app error:', error);
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', message: error.message }) };
-    }
-  }
-
-  if (httpMethod === 'DELETE') {
-    try {
-      const { id } = queryStringParameters;
-      const appId = parseInt(id);
+            }))\n          })\n        };\n\n      } else if (requestData.action === 'add-manual') {\n        const { appData } = requestData;\n        \n        const newApp = {\n          id: nextId++,\n          packageName: appData.packageName || generatePackageName(appData.title, appData.developer),\n          title: appData.title,\n          description: appData.description,\n          shortDescription: appData.shortDescription || appData.description?.substring(0, 200),\n          version: appData.version || '1.0.0',\n          versionCode: appData.versionCode || 1,\n          category: appData.category || 'Games',\n          developer: appData.developer,\n          rating: appData.rating || 0,\n          downloadCount: appData.downloadCount || 0,\n          fileSize: appData.fileSize || null,\n          downloadUrl: appData.downloadUrl,\n          iconUrl: appData.iconUrl,\n          featured: appData.featured || false,\n          active: true,\n          sourceUrls: appData.sourceUrls || {},\n          createdAt: new Date().toISOString(),\n          updatedAt: new Date().toISOString(),\n          screenshots: appData.screenshots || []\n        };\n\n        apps.push(newApp);\n        await setAppData({ apps, nextId });\n\n        return {\n          statusCode: 200,\n          headers,\n          body: JSON.stringify({\n            success: true,\n            message: 'App added successfully',\n            app: newApp\n          })\n        };\n      }\n\n    } catch (error) {\n      console.error('Add app error:', error);\n      return {\n        statusCode: 500,\n        headers,\n        body: JSON.stringify({\n          error: 'Internal server error',\n          message: error.message\n        })\n      };\n    }\n  }\n\n  if (httpMethod === 'PUT') {\n    try {\n      const { id } = queryStringParameters;\n      const appId = parseInt(id);\n      const updatedData = JSON.parse(body);\n\n      const appIndex = apps.findIndex(app => app.id === appId);\n      if (appIndex === -1) {\n        return { statusCode: 404, headers, body: JSON.stringify({ error: 'App not found' }) };\n      }\n\n      // Merge existing data with updated data\n      apps[appIndex] = {\n        ...apps[appIndex],\n        ...updatedData,\n        updatedAt: new Date().toISOString()\n      };\n\n      await setAppData({ apps, nextId });\n\n      return {\n        statusCode: 200,\n        headers,\n        body: JSON.stringify({ success: true, message: 'App updated successfully', app: apps[appIndex] })\n      };\n\n    } catch (error) {\n      console.error('Update app error:', error);\n      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', message: error.message }) };\n    }\n  }\n\n  if (httpMethod === 'DELETE') {\n    try {\n      const { id } = queryStringParameters;\n      const appId = parseInt(id);
 
       const initialLength = apps.length;
       const appToDelete = apps.find(app => app.id === appId);
@@ -556,9 +463,7 @@ exports.handler = async (event, context) => {
     } catch (error) {
       console.error('Delete app error:', error);
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', message: error.message }) };
-    }
-  }
-
+    }\n  }\n
   return {
     statusCode: 405,
     headers,
