@@ -1,4 +1,4 @@
-const { Pool } = require('pg');
+const { Pool } = require('pg'); // Use standard pg client
 const path = require('path');
 const fs = require('fs');
 
@@ -296,10 +296,4 @@ const dbHelpers = {
             throw error;
         }
     }
-};
-
-module.exports = {
-    initDatabase,
-    getDB,
-    ...dbHelpers
 };
