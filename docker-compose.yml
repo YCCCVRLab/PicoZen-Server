@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  picozen-server:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_PATH=/app/data/picozen.db
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - picozen-server
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Optional: PostgreSQL database (instead of SQLite)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=picozen
+      - POSTGRES_USER=picozen
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-picozen123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - postgres
+
+volumes:
+  postgres_data:
