@@ -1,5 +1,4 @@
-// Simple apps endpoint without Netlify Blobs for now
-// This ensures the function works immediately
+// Apps endpoint with only real apps that have actual APKs
 
 function getDefaultApps() {
   return [
@@ -30,70 +29,9 @@ function getDefaultApps() {
           displayOrder: 0
         }
       ]
-    },
-    {
-      id: 2,
-      packageName: 'com.oculus.browser',
-      title: 'Oculus Browser',
-      description: 'The Oculus Browser brings the full web to VR. Browse websites, watch videos, and interact with web content in an immersive virtual environment. Features include desktop-class browsing, video streaming, and web app support.',
-      shortDescription: 'Browse the web in VR with full desktop functionality',
-      version: '1.0.0',
-      versionCode: 1,
-      category: 'Tools',
-      developer: 'Meta',
-      rating: 4.2,
-      downloadCount: 15000,
-      fileSize: 89456789,
-      downloadUrl: '/api/download/2',
-      iconUrl: 'https://via.placeholder.com/128x128/4267B2/FFFFFF?text=OB',
-      featured: false,
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      screenshots: []
-    },
-    {
-      id: 3,
-      packageName: 'com.vrchat.mobile',
-      title: 'VRChat',
-      description: 'VRChat is a social VR platform where you can create, publish, and explore virtual worlds with other people from around the globe. Meet new friends, attend events, and express yourself through custom avatars.',
-      shortDescription: 'Meet people in VR and explore thousands of worlds',
-      version: '2.1.0',
-      versionCode: 210,
-      category: 'Social',
-      developer: 'VRChat Inc.',
-      rating: 4.5,
-      downloadCount: 25000,
-      fileSize: 234567890,
-      downloadUrl: '/api/download/3',
-      iconUrl: 'https://via.placeholder.com/128x128/1DB954/FFFFFF?text=VC',
-      featured: true,
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      screenshots: []
-    },
-    {
-      id: 4,
-      packageName: 'com.unity.template.vr',
-      title: 'Unity VR Template',
-      description: 'A complete VR development template for Unity, perfect for learning VR app development and prototyping new experiences. Includes interaction systems, UI components, and sample scenes.',
-      shortDescription: 'Learn VR development with Unity\'s comprehensive template',
-      version: '1.5.0',
-      versionCode: 150,
-      category: 'Education',
-      developer: 'Unity Technologies',
-      rating: 4.3,
-      downloadCount: 3500,
-      fileSize: 156789012,
-      downloadUrl: '/api/download/4',
-      iconUrl: 'https://via.placeholder.com/128x128/000000/FFFFFF?text=U',
-      featured: false,
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      screenshots: []
     }
+    // Only include apps with real, working APK files
+    // Add more apps here when you have actual APK files to distribute
   ];
 }
 
@@ -124,7 +62,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Get all apps (using static data for now)
+    // Get all apps (only real apps with actual APKs)
     const allApps = getDefaultApps();
     const { queryStringParameters = {} } = event;
     const { page = '1', limit = '20', category, search } = queryStringParameters;
@@ -173,7 +111,8 @@ exports.handler = async (event, context) => {
           activeApps: filteredApps.length,
           requestedCategory: category,
           requestedSearch: search,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          note: "Only apps with real APK files are included"
         }
       })
     };
