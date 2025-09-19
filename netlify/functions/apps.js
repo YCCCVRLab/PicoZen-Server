@@ -53,6 +53,9 @@ const categories = [
   { id: 7, name: 'Tools', description: 'System Utilities and Tools', appCount: 0 }
 ];
 
+// Export the apps array so other functions can access it
+global.picozenApps = apps;
+
 exports.handler = async (event, context) => {
   const { httpMethod, path, queryStringParameters } = event;
   
@@ -121,7 +124,7 @@ exports.handler = async (event, context) => {
           rating: app.rating,
           downloadCount: app.downloadCount,
           fileSize: app.fileSize,
-          downloadUrl: `/api/download/${app.id}`,
+          downloadUrl: app.downloadUrl, // Direct URL for now
           iconUrl: app.iconUrl,
           featured: app.featured,
           screenshots: app.screenshots || [],
@@ -171,7 +174,7 @@ exports.handler = async (event, context) => {
           rating: app.rating,
           downloadCount: app.downloadCount,
           fileSize: app.fileSize,
-          downloadUrl: `/api/download/${app.id}`,
+          downloadUrl: app.downloadUrl,
           iconUrl: app.iconUrl,
           featured: app.featured,
           screenshots: app.screenshots || [],
