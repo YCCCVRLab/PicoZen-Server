@@ -1,4 +1,4 @@
-// Simple categories endpoint without Netlify Blobs for now
+// Categories endpoint - only show categories that have real apps
 
 function getDefaultCategories() {
   return [
@@ -6,58 +6,35 @@ function getDefaultCategories() {
       id: 'education',
       name: 'Education',
       slug: 'education',
-      description: 'Learning and training applications for VR',
-      appCount: 2,
+      description: 'Learning and training applications for VR - featuring UbiSim nursing simulation',
+      appCount: 1,
       iconUrl: '🎓'
-    },
-    {
-      id: 'tools',
-      name: 'Tools',
-      slug: 'tools',
-      description: 'Utility applications and system tools',
-      appCount: 1,
-      iconUrl: '🔧'
-    },
-    {
-      id: 'social',
-      name: 'Social',
-      slug: 'social',
-      description: 'Communication and social VR platforms',
-      appCount: 1,
-      iconUrl: '👥'
-    },
-    {
-      id: 'games',
-      name: 'Games',
-      slug: 'games',
-      description: 'VR games and entertainment experiences',
-      appCount: 0,
-      iconUrl: '🎮'
-    },
-    {
-      id: 'entertainment',
-      name: 'Entertainment',
-      slug: 'entertainment',
-      description: 'Media players and entertainment apps',
-      appCount: 0,
-      iconUrl: '🎬'
-    },
-    {
-      id: 'productivity',
-      name: 'Productivity',
-      slug: 'productivity',
-      description: 'Work and productivity applications',
-      appCount: 0,
-      iconUrl: '💼'
-    },
-    {
-      id: 'health-fitness',
-      name: 'Health & Fitness',
-      slug: 'health-fitness',
-      description: 'Exercise and wellness applications',
-      appCount: 0,
-      iconUrl: '💪'
     }
+    // Other categories will be added when we have actual apps for them
+    // {
+    //   id: 'tools',
+    //   name: 'Tools',
+    //   slug: 'tools',
+    //   description: 'Utility applications and system tools',
+    //   appCount: 0,
+    //   iconUrl: '🔧'
+    // },
+    // {
+    //   id: 'social',
+    //   name: 'Social',
+    //   slug: 'social',
+    //   description: 'Communication and social VR platforms',
+    //   appCount: 0,
+    //   iconUrl: '👥'
+    // },
+    // {
+    //   id: 'games',
+    //   name: 'Games',
+    //   slug: 'games',
+    //   description: 'VR games and entertainment experiences',
+    //   appCount: 0,
+    //   iconUrl: '🎮'
+    // }
   ];
 }
 
@@ -104,7 +81,8 @@ exports.handler = async (event, context) => {
         success: true,
         categories: categories,
         total: categories.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        note: "Only categories with real apps are shown"
       })
     };
     
