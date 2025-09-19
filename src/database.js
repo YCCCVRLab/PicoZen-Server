@@ -297,3 +297,9 @@ const dbHelpers = {
         }
     }
 };
+
+module.exports = {
+    initDatabase,
+    getDB,
+    ...dbHelpers
+};
