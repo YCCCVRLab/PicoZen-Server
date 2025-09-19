@@ -1,10 +1,93 @@
-// Enhanced admin endpoint with GitHub + Supabase dual storage
+// Enhanced admin endpoint with GitHub + Supabase dual storage and URL scraping
 
 const ADMIN_PASSWORD = "vrlab2025";
 
 // Supabase configuration
 const SUPABASE_URL = "https://elragqsejbarytfkiyxc.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVscmFncXNlamJhcnl0ZmtpeXhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyOTUzODQsImV4cCI6MjA3Mzg3MTM4NH0.bREsWnnaS_tfF3mQYtoO--LyPjJOBQNDeMC-bbBMloA";
+
+// Helper to validate and extract app info from URLs
+function parseAppFromURL(url) {
+  try {
+    const urlObj = new URL(url);
+    let appInfo = {
+      title: 'Unknown App',
+      developer: 'Unknown Developer',
+      category: 'Games',
+      description: 'VR application - please update description',
+      shortDescription: 'VR application',
+      version: '1.0.0',
+      rating: 4.0,
+      downloadUrl: url,
+      iconUrl: null,
+      sourceUrls: {}
+    };
+
+    // Meta Quest Store / Meta.com
+    if (urlObj.hostname.includes('meta.com') || urlObj.hostname.includes('oculus.com')) {
+      appInfo.developer = 'Meta Quest Developer';
+      appInfo.sourceUrls.meta = url;
+      
+      // Try to extract app ID from URL
+      const pathMatch = url.match(/\/experiences\/[^\/]+\/(\d+)/);
+      if (pathMatch) {
+        const appId = pathMatch[1];
+        appInfo.title = `Meta Quest App ${appId}`;
+        appInfo.packageName = `com.meta.app.${appId}`;
+      }
+      
+      // Extract potential app name from URL path
+      const pathParts = urlObj.pathname.split('/');
+      const lastPart = pathParts[pathParts.length - 1];
+      if (lastPart && lastPart.length > 3 && !lastPart.match(/^\d+$/)) {
+        appInfo.title = lastPart.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      }
+      
+      return appInfo;
+    }
+
+    // SideQuest
+    if (urlObj.hostname.includes('sidequestvr.com')) {
+      appInfo.developer = 'SideQuest Developer';
+      appInfo.sourceUrls.sidequest = url;
+      
+      const pathMatch = url.match(/\/app\/(\d+)/);
+      if (pathMatch) {
+        const appId = pathMatch[1];
+        appInfo.title = `SideQuest App ${appId}`;
+        appInfo.packageName = `com.sidequest.app.${appId}`;
+      }
+      
+      return appInfo;
+    }
+
+    // Steam VR
+    if (urlObj.hostname.includes('steampowered.com')) {
+      appInfo.developer = 'Steam Developer';
+      appInfo.sourceUrls.steam = url;
+      
+      const pathMatch = url.match(/\/app\/(\d+)/);
+      if (pathMatch) {
+        const appId = pathMatch[1];
+        appInfo.title = `Steam VR App ${appId}`;
+        appInfo.packageName = `com.steam.app.${appId}`;
+      }
+      
+      return appInfo;
+    }
+
+    // Direct APK or other URLs
+    appInfo.sourceUrls.direct = url;
+    appInfo.title = 'Direct Download App';
+    appInfo.developer = 'Independent Developer';
+    
+    return appInfo;
+
+  } catch (error) {
+    console.error('Error parsing URL:', error);
+    return null;
+  }
+}
 
 // Helper to get apps from Supabase
 async function getAppsFromSupabase() {
@@ -103,7 +186,8 @@ async function saveAppToSupabase(appData, isUpdate = false) {
     }
 
     if (!response.ok) {
-      throw new Error(`Supabase save error: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`Supabase save error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
@@ -111,6 +195,47 @@ async function saveAppToSupabase(appData, isUpdate = false) {
   } catch (error) {
     console.error('Error saving to Supabase:', error);
     return null;
+  }
+}
+
+// Helper to save source URLs to Supabase
+async function saveSourceUrlsToSupabase(appId, sourceUrls) {
+  try {
+    // First, delete existing source URLs for this app
+    await fetch(`${SUPABASE_URL}/rest/v1/source_urls?app_id=eq.${appId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+
+    // Then insert new source URLs
+    const urlsToInsert = Object.entries(sourceUrls || {})
+      .filter(([key, url]) => url)
+      .map(([storeType, url]) => ({
+        app_id: appId,
+        store_type: storeType,
+        url: url
+      }));
+
+    if (urlsToInsert.length > 0) {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/source_urls`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(urlsToInsert)
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save source URLs:', response.status);
+      }
+    }
+  } catch (error) {
+    console.error('Error saving source URLs:', error);
   }
 }
 
@@ -242,6 +367,86 @@ exports.handler = async (event, context) => {
 
       const { action, appData, urls } = requestBody;
 
+      // Handle URL scraping
+      if (action === 'scrape-and-add') {
+        if (!urls || urls.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ 
+              success: false, 
+              error: 'No URLs provided for scraping' 
+            })
+          };
+        }
+
+        const newApps = [];
+        const errors = [];
+
+        for (const url of urls) {
+          const appInfo = parseAppFromURL(url);
+          
+          if (!appInfo) {
+            errors.push(`Failed to parse URL: ${url}`);
+            continue;
+          }
+
+          const newApp = {
+            packageName: appInfo.packageName || `com.${appInfo.developer.toLowerCase().replace(/\s+/g, '')}.${appInfo.title.toLowerCase().replace(/\s+/g, '')}`,
+            title: appInfo.title,
+            description: appInfo.description,
+            shortDescription: appInfo.shortDescription,
+            version: appInfo.version,
+            versionCode: 1,
+            category: appInfo.category,
+            developer: appInfo.developer,
+            rating: appInfo.rating,
+            downloadCount: 0,
+            fileSize: 100000000, // Default size
+            downloadUrl: appInfo.downloadUrl,
+            iconUrl: appInfo.iconUrl || `https://via.placeholder.com/128x128/4267B2/FFFFFF?text=${appInfo.title.charAt(0)}`,
+            featured: false,
+            active: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            sourceUrls: appInfo.sourceUrls,
+            screenshots: []
+          };
+
+          // Save to Supabase
+          const savedApp = await saveAppToSupabase(newApp);
+          
+          if (savedApp) {
+            newApp.id = savedApp.id;
+            
+            // Save source URLs
+            await saveSourceUrlsToSupabase(savedApp.id, appInfo.sourceUrls);
+            
+            newApps.push(newApp);
+          } else {
+            errors.push(`Failed to save app: ${appInfo.title}`);
+          }
+        }
+
+        if (newApps.length > 0) {
+          // Sync to GitHub
+          const allApps = await getAppsFromSupabase();
+          await syncToGitHub(allApps);
+        }
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: newApps.length > 0,
+            apps: newApps,
+            message: `Successfully added ${newApps.length} apps from URLs`,
+            errors: errors.length > 0 ? errors : undefined
+          })
+        };
+      }
+
+      // Handle manual add
       if (action === 'add-manual') {
         const newApp = {
           packageName: appData.packageName || `com.${(appData.developer || 'unknown').toLowerCase().replace(/\s+/g, '')}.${(appData.title || 'app').toLowerCase().replace(/\s+/g, '')}`,
@@ -271,6 +476,9 @@ exports.handler = async (event, context) => {
         if (savedApp) {
           newApp.id = savedApp.id;
           
+          // Save source URLs
+          await saveSourceUrlsToSupabase(savedApp.id, newApp.sourceUrls);
+          
           // Sync to GitHub
           const allApps = await getAppsFromSupabase();
           await syncToGitHub(allApps);
@@ -296,7 +504,6 @@ exports.handler = async (event, context) => {
         }
       }
 
-      // Handle scrape-and-add similarly...
       return {
         statusCode: 400,
         headers,
@@ -359,6 +566,9 @@ exports.handler = async (event, context) => {
       const savedApp = await saveAppToSupabase(updatedApp, true);
       
       if (savedApp) {
+        // Update source URLs
+        await saveSourceUrlsToSupabase(appId, requestBody.sourceUrls);
+        
         // Sync to GitHub
         const allApps = await getAppsFromSupabase();
         await syncToGitHub(allApps);
