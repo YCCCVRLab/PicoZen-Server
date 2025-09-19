@@ -1,4 +1,74 @@
-// Apps endpoint with robust fallback system
+// Public apps endpoint with Supabase + GitHub + fallback
+
+// Supabase configuration
+const SUPABASE_URL = "https://elragqsejbarytfkiyxc.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVscmFncXNlamJhcnl0ZmtpeXhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyOTUzODQsImV4cCI6MjA3Mzg3MTM4NH0.bREsWnnaS_tfF3mQYtoO--LyPjJOBQNDeMC-bbBMloA";
+
+// Helper to get apps from Supabase
+async function getAppsFromSupabase() {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/apps?select=*,screenshots(*),source_urls(*)&active=eq.true&order=created_at.desc`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Supabase error: ${response.status}`);
+    }
+
+    const apps = await response.json();
+    
+    // Transform to match expected format
+    return apps.map(app => ({
+      id: app.id,
+      packageName: app.package_name,
+      title: app.title,
+      description: app.description,
+      shortDescription: app.short_description,
+      version: app.version,
+      versionCode: app.version_code,
+      category: app.category,
+      developer: app.developer,
+      rating: app.rating,
+      downloadCount: app.download_count,
+      fileSize: app.file_size,
+      downloadUrl: app.download_url,
+      iconUrl: app.icon_url,
+      featured: app.featured,
+      active: app.active,
+      createdAt: app.created_at,
+      updatedAt: app.updated_at,
+      screenshots: app.screenshots || [],
+      sourceUrls: app.source_urls.reduce((acc, url) => {
+        acc[url.store_type] = url.url;
+        return acc;
+      }, {})
+    }));
+  } catch (error) {
+    console.error('Supabase error:', error);
+    return null;
+  }
+}
+
+// Helper to get apps from GitHub JSON file
+async function getAppsFromGitHub() {
+  try {
+    const response = await fetch('https://raw.githubusercontent.com/YCCCVRLab/PicoZen-Server/main/public/data/apps.json');
+    
+    if (!response.ok) {
+      throw new Error(`GitHub fetch error: ${response.status}`);
+    }
+
+    const apps = await response.json();
+    return Array.isArray(apps) ? apps : [];
+  } catch (error) {
+    console.error('GitHub fetch error:', error);
+    return null;
+  }
+}
 
 // Default apps data (always available)
 function getDefaultApps() {
@@ -34,27 +104,36 @@ function getDefaultApps() {
   ];
 }
 
-// Try to get apps from Netlify Blobs, fallback to default
+// Multi-tier data retrieval with fallbacks
 async function getAppData() {
+  let dataSource = 'unknown';
+  
   try {
-    // Try to use Netlify Blobs
-    const { getStore } = require("@netlify/blobs");
-    const store = getStore("picozen-app-data");
-    const blob = await store.get("apps", { type: "json" });
-    
-    if (blob && Array.isArray(blob)) {
-      return blob;
+    // Try Supabase first (most up-to-date)
+    console.log('Attempting to fetch from Supabase...');
+    const supabaseApps = await getAppsFromSupabase();
+    if (supabaseApps && supabaseApps.length > 0) {
+      console.log(`Loaded ${supabaseApps.length} apps from Supabase`);
+      return { apps: supabaseApps, dataSource: 'supabase' };
     }
     
-    // If no blob data, initialize with defaults and return defaults
+    // Try GitHub JSON file as fallback
+    console.log('Supabase failed, trying GitHub...');
+    const githubApps = await getAppsFromGitHub();
+    if (githubApps && githubApps.length > 0) {
+      console.log(`Loaded ${githubApps.length} apps from GitHub`);
+      return { apps: githubApps, dataSource: 'github' };
+    }
+    
+    // Final fallback to default apps
+    console.log('All external sources failed, using default apps');
     const defaultApps = getDefaultApps();
-    await store.set("apps", defaultApps, { type: "json" });
-    return defaultApps;
+    return { apps: defaultApps, dataSource: 'default' };
     
   } catch (error) {
-    console.error('Netlify Blobs error, using fallback:', error);
-    // Always return default apps if anything goes wrong
-    return getDefaultApps();
+    console.error('All data sources failed:', error);
+    const defaultApps = getDefaultApps();
+    return { apps: defaultApps, dataSource: 'emergency-fallback' };
   }
 }
 
@@ -85,15 +164,8 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Get all apps with robust fallback
-    let allApps;
-    try {
-      allApps = await getAppData();
-    } catch (error) {
-      console.error('getAppData failed, using default apps:', error);
-      allApps = getDefaultApps();
-    }
-    
+    // Get all apps with multi-tier fallback system
+    const { apps: allApps, dataSource } = await getAppData();
     const { queryStringParameters = {} } = event;
     const { page = '1', limit = '20', category, search } = queryStringParameters;
     
@@ -142,7 +214,7 @@ exports.handler = async (event, context) => {
           requestedCategory: category,
           requestedSearch: search,
           timestamp: new Date().toISOString(),
-          dataSource: allApps.length > 1 ? 'netlify-blobs' : 'fallback-default'
+          dataSource: dataSource
         }
       })
     };
@@ -150,7 +222,7 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('Apps function critical error:', error);
     
-    // Final fallback - return default apps no matter what
+    // Final emergency fallback - return default apps no matter what
     const defaultApps = getDefaultApps();
     return {
       statusCode: 200,
@@ -168,7 +240,7 @@ exports.handler = async (event, context) => {
           totalAppsInDatabase: defaultApps.length,
           activeApps: defaultApps.length,
           timestamp: new Date().toISOString(),
-          dataSource: 'emergency-fallback',
+          dataSource: 'critical-emergency-fallback',
           error: error.message
         }
       })
