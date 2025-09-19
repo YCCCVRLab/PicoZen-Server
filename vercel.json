@@ -3,29 +3,8 @@
   "name": "picozen-server",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/server.js"
-    },
-    {
-      "source": "/admin(.*)",
-      "destination": "/server.js"
-    },
-    {
-      "source": "/images/(.*)",
-      "destination": "/server.js"
-    },
-    {
-      "source": "/files/(.*)",
-      "destination": "/server.js"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/server.js"
+      "destination": "/api"
     }
-  ],
-  "functions": {
-    "server.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
