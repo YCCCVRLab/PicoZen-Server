@@ -1,16 +1,6 @@
 {
   "version": 2,
   "name": "picozen-server",
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "uploads/**/*",
-      "use": "@vercel/static"
-    }
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
@@ -27,10 +17,6 @@
     {
       "src": "/files/(.*)",
       "dest": "/server.js"
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "/uploads/$1"
     },
     {
       "src": "/(.*)",
@@ -52,23 +38,13 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-        },
-        {
-          "key": "Access-Control-Max-Age",
-          "value": "86400"
         }
       ]
     }
   ],
-  "env": {
-    "NODE_ENV": "production",
-    "DATABASE_PATH": "/tmp/picozen.db",
-    "ADMIN_PASSWORD": "yccc-vr-lab-2025"
-  },
   "functions": {
     "server.js": {
-      "maxDuration": 30,
-      "memory": 1024
+      "maxDuration": 30
     }
   }
 }
