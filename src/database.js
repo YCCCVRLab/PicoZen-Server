@@ -1,4 +1,4 @@
-const { Pool } = require('@vercel/postgres'); // Use Vercel's pg client
+const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 
@@ -66,9 +66,9 @@ const schema = {
 // Initialize database connection pool and schema
 async function initDatabase() {
     try {
-        const connectionString = process.env.POSTGRES_URL; // Vercel integration variable
+        const connectionString = process.env.DATABASE_URL; // Vercel integration variable
         if (!connectionString) {
-            throw new Error("POSTGRES_URL environment variable is not set by Vercel integration.");
+            throw new Error("DATABASE_URL environment variable is not set.");
         }
 
         pool = new Pool({
@@ -78,7 +78,7 @@ async function initDatabase() {
 
         // Test connection
         await pool.query('SELECT 1');
-        console.log('✅ Connected to PostgreSQL database via Vercel integration.');
+        console.log('✅ Connected to PostgreSQL database.');
 
         // Create tables
         for (const tableName of Object.keys(schema)) {
