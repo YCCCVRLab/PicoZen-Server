@@ -7,7 +7,8 @@
     "start": "node api/index.js",
     "dev": "node api/index.js",
     "build": "echo 'Vercel handles the build'",
-    "vercel-build": "echo 'Build complete'"
+    "vercel-build": "echo 'Build complete'",
+    "postinstall": "npm rebuild --prefix node_modules/pg --update-binary --fallback-to-build"
   },
   "keywords": [
     "vr",
@@ -32,7 +33,8 @@
     "express-rate-limit": "^6.8.1",
     "dotenv": "^16.3.1",
     "axios": "^1.5.0",
-    "cheerio": "^1.0.0-rc.12"
+    "cheerio": "^1.0.0-rc.12",
+    "pg": "^8.11.3"
   },
   "engines": {
     "node": "22.x"
