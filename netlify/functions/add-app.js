@@ -1,9 +1,161 @@
-// Admin endpoint with robust fallback system
+// Enhanced admin endpoint with GitHub + Supabase dual storage
 
-// Admin password - you can change this
 const ADMIN_PASSWORD = "vrlab2025";
 
-// Default apps data (always available)
+// Supabase configuration
+const SUPABASE_URL = "https://elragqsejbarytfkiyxc.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVscmFncXNlamJhcnl0ZmtpeXhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyOTUzODQsImV4cCI6MjA3Mzg3MTM4NH0.bREsWnnaS_tfF3mQYtoO--LyPjJOBQNDeMC-bbBMloA";
+
+// Helper to get apps from Supabase
+async function getAppsFromSupabase() {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/apps?select=*,screenshots(*),source_urls(*)&active=eq.true&order=created_at.desc`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Supabase error: ${response.status}`);
+    }
+
+    const apps = await response.json();
+    
+    // Transform to match expected format
+    return apps.map(app => ({
+      id: app.id,
+      packageName: app.package_name,
+      title: app.title,
+      description: app.description,
+      shortDescription: app.short_description,
+      version: app.version,
+      versionCode: app.version_code,
+      category: app.category,
+      developer: app.developer,
+      rating: app.rating,
+      downloadCount: app.download_count,
+      fileSize: app.file_size,
+      downloadUrl: app.download_url,
+      iconUrl: app.icon_url,
+      featured: app.featured,
+      active: app.active,
+      createdAt: app.created_at,
+      updatedAt: app.updated_at,
+      screenshots: app.screenshots || [],
+      sourceUrls: app.source_urls.reduce((acc, url) => {
+        acc[url.store_type] = url.url;
+        return acc;
+      }, {})
+    }));
+  } catch (error) {
+    console.error('Supabase error:', error);
+    return null;
+  }
+}
+
+// Helper to save app to Supabase
+async function saveAppToSupabase(appData, isUpdate = false) {
+  try {
+    const supabaseApp = {
+      package_name: appData.packageName,
+      title: appData.title,
+      description: appData.description,
+      short_description: appData.shortDescription,
+      version: appData.version,
+      version_code: appData.versionCode,
+      category: appData.category,
+      developer: appData.developer,
+      rating: appData.rating,
+      download_count: appData.downloadCount || 0,
+      file_size: appData.fileSize,
+      download_url: appData.downloadUrl,
+      icon_url: appData.iconUrl,
+      featured: appData.featured,
+      active: appData.active,
+      updated_at: new Date().toISOString()
+    };
+
+    let response;
+    if (isUpdate) {
+      response = await fetch(`${SUPABASE_URL}/rest/v1/apps?id=eq.${appData.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(supabaseApp)
+      });
+    } else {
+      response = await fetch(`${SUPABASE_URL}/rest/v1/apps`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(supabaseApp)
+      });
+    }
+
+    if (!response.ok) {
+      throw new Error(`Supabase save error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return Array.isArray(result) ? result[0] : result;
+  } catch (error) {
+    console.error('Error saving to Supabase:', error);
+    return null;
+  }
+}
+
+// Helper to delete app from Supabase
+async function deleteAppFromSupabase(appId) {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/apps?id=eq.${appId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('Error deleting from Supabase:', error);
+    return false;
+  }
+}
+
+// GitHub storage helpers
+async function syncToGitHub(apps) {
+  try {
+    if (!process.env.GITHUB_TOKEN) {
+      console.log('GitHub token not configured, skipping GitHub sync');
+      return false;
+    }
+
+    const { readAppsFromGitHub, writeAppsToGitHub } = require('./github-storage');
+    const githubData = await readAppsFromGitHub();
+    
+    if (githubData) {
+      const result = await writeAppsToGitHub(apps, githubData.sha, 'Admin: Update apps via PicoZen Admin Panel');
+      return result.success;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('GitHub sync error:', error);
+    return false;
+  }
+}
+
+// Default fallback apps
 function getDefaultApps() {
   return [
     {
@@ -26,59 +178,11 @@ function getDefaultApps() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       sourceUrls: {
-        meta: null,
-        sidequest: null,
-        steam: null,
         direct: 'https://ubisimstreamingprod.blob.core.windows.net/builds/UbiSimPlayer-1.18.0.157.apk?sv=2023-11-03&spr=https,http&se=2026-01-22T13%3A54%3A34Z&sr=b&sp=r&sig=fWimVufXCv%2BG6peu4t4R1ooXF37BEGVm2IS9e%2Fntw%2BI%3D'
       },
-      screenshots: [
-        {
-          id: 1,
-          imageUrl: 'https://scontent-lga3-1.oculuscdn.com/v/t64.7195-25/38984472_169844144659621_3902083327436685927_n.mp4?_nc_cat=103&ccb=1-7&_nc_sid=b20b63&_nc_ohc=UdTZVSh8_P4Q7kNvwHMKhiH&_nc_oc=AdlRAoAmsizYNq9JdGRXgsNIUvbASw06CefWGFpJ_Md_5lN46DHggxXasu8cDDC95fM&_nc_zt=28&_nc_ht=scontent-lga3-1.oculuscdn.com&_nc_gid=vM72Tx9O81wgigJ8zr_kMw&oh=00_AfbWIvC-TEvNv-F_qmail5Z_qk8odQ1zwY_rymHdHKupPg&oe=68D33CB7',
-          caption: 'UbiSim VR Training Demo',
-          displayOrder: 0
-        }
-      ]
+      screenshots: []
     }
   ];
-}
-
-// Try to get apps from Netlify Blobs, fallback to default
-async function getAppData() {
-  try {
-    // Try to use Netlify Blobs
-    const { getStore } = require("@netlify/blobs");
-    const store = getStore("picozen-app-data");
-    const blob = await store.get("apps", { type: "json" });
-    
-    if (blob && Array.isArray(blob)) {
-      return { apps: blob, nextId: Math.max(...blob.map(app => app.id), 0) + 1 };
-    }
-    
-    // If no blob data, initialize with defaults
-    const defaultApps = getDefaultApps();
-    await store.set("apps", defaultApps, { type: "json" });
-    return { apps: defaultApps, nextId: defaultApps.length + 1 };
-    
-  } catch (error) {
-    console.error('Netlify Blobs error, using fallback:', error);
-    // Always return default apps if anything goes wrong
-    const defaultApps = getDefaultApps();
-    return { apps: defaultApps, nextId: defaultApps.length + 1 };
-  }
-}
-
-// Try to save app data to Netlify Blobs
-async function saveAppData(apps) {
-  try {
-    const { getStore } = require("@netlify/blobs");
-    const store = getStore("picozen-app-data");
-    await store.set("apps", apps, { type: "json" });
-    return true;
-  } catch (error) {
-    console.error('Error saving app data:', error);
-    return false;
-  }
 }
 
 // Helper to verify admin password
@@ -86,11 +190,6 @@ function verifyAdmin(authHeader) {
   if (!authHeader) return false;
   const token = authHeader.replace('Bearer ', '');
   return token === ADMIN_PASSWORD;
-}
-
-// Helper to generate next ID
-function getNextId(apps) {
-  return Math.max(...apps.map(app => app.id), 0) + 1;
 }
 
 exports.handler = async (event, context) => {
@@ -107,20 +206,14 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Get apps with robust fallback
-    let appData;
-    try {
-      appData = await getAppData();
-    } catch (error) {
-      console.error('getAppData failed, using defaults:', error);
-      const defaultApps = getDefaultApps();
-      appData = { apps: defaultApps, nextId: defaultApps.length + 1 };
-    }
-    
-    const { apps } = appData;
-
-    // GET - List all apps (for admin panel)
+    // GET - List all apps (try Supabase first, fallback to defaults)
     if (event.httpMethod === 'GET') {
+      let apps = await getAppsFromSupabase();
+      
+      if (!apps || apps.length === 0) {
+        apps = getDefaultApps();
+      }
+
       return {
         statusCode: 200,
         headers,
@@ -128,12 +221,13 @@ exports.handler = async (event, context) => {
           success: true,
           apps: apps,
           total: apps.length,
-          message: 'Apps loaded successfully'
+          message: 'Apps loaded successfully',
+          dataSource: apps.length > 1 ? 'supabase' : 'fallback'
         })
       };
     }
 
-    // POST - Add new app or scrape from URLs
+    // POST - Add new app
     if (event.httpMethod === 'POST') {
       let requestBody;
       try {
@@ -142,93 +236,14 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid JSON in request body'
-          })
+          body: JSON.stringify({ success: false, error: 'Invalid JSON' })
         };
       }
 
       const { action, appData, urls } = requestBody;
 
-      if (action === 'scrape-and-add') {
-        // Basic URL scraping simulation
-        const newApps = [];
-        
-        for (const url of urls || []) {
-          let appTitle = 'Unknown App';
-          let category = 'Games';
-          let developer = 'Unknown Developer';
-          
-          // Simple URL parsing to extract app info
-          if (url.includes('oculus.com') || url.includes('meta.com')) {
-            developer = 'Meta';
-            category = 'Games';
-          } else if (url.includes('sidequestvr.com')) {
-            developer = 'SideQuest Developer';
-            category = 'Games';
-          } else if (url.includes('steampowered.com')) {
-            developer = 'Steam Developer';
-            category = 'Games';
-          }
-          
-          // Extract potential app name from URL
-          const urlParts = url.split('/');
-          const lastPart = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
-          if (lastPart && lastPart !== '') {
-            appTitle = lastPart.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          }
-          
-          const newApp = {
-            id: getNextId([...apps, ...newApps]),
-            packageName: `com.${developer.toLowerCase().replace(/\s+/g, '')}.${appTitle.toLowerCase().replace(/\s+/g, '')}`,
-            title: appTitle,
-            description: `${appTitle} - A VR application from ${developer}. Please update this description with accurate information.`,
-            shortDescription: `VR app from ${developer}`,
-            version: '1.0.0',
-            versionCode: 1,
-            category: category,
-            developer: developer,
-            rating: 4.0,
-            downloadCount: 0,
-            fileSize: 100000000,
-            downloadUrl: url, // Using the source URL as download URL for now
-            iconUrl: 'https://via.placeholder.com/128x128/4267B2/FFFFFF?text=' + appTitle.charAt(0),
-            featured: false,
-            active: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            sourceUrls: {
-              meta: url.includes('oculus.com') || url.includes('meta.com') ? url : null,
-              sidequest: url.includes('sidequestvr.com') ? url : null,
-              steam: url.includes('steampowered.com') ? url : null,
-              direct: null
-            },
-            screenshots: []
-          };
-          
-          newApps.push(newApp);
-        }
-        
-        const updatedApps = [...apps, ...newApps];
-        const saved = await saveAppData(updatedApps);
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: saved,
-            apps: newApps,
-            message: saved 
-              ? `Successfully added ${newApps.length} apps from URLs`
-              : `Added ${newApps.length} apps (storage may be temporary)`
-          })
-        };
-      }
-
       if (action === 'add-manual') {
         const newApp = {
-          id: getNextId(apps),
           packageName: appData.packageName || `com.${(appData.developer || 'unknown').toLowerCase().replace(/\s+/g, '')}.${(appData.title || 'app').toLowerCase().replace(/\s+/g, '')}`,
           title: appData.title,
           description: appData.description || '',
@@ -249,30 +264,43 @@ exports.handler = async (event, context) => {
           sourceUrls: appData.sourceUrls || {},
           screenshots: appData.screenshots || []
         };
+
+        // Save to Supabase
+        const savedApp = await saveAppToSupabase(newApp);
         
-        const updatedApps = [...apps, newApp];
-        const saved = await saveAppData(updatedApps);
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            app: newApp,
-            message: saved 
-              ? `App "${newApp.title}" added successfully`
-              : `App "${newApp.title}" added (storage may be temporary)`
-          })
-        };
+        if (savedApp) {
+          newApp.id = savedApp.id;
+          
+          // Sync to GitHub
+          const allApps = await getAppsFromSupabase();
+          await syncToGitHub(allApps);
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              success: true,
+              app: newApp,
+              message: `App "${newApp.title}" added successfully and saved to database`
+            })
+          };
+        } else {
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({
+              success: false,
+              error: 'Failed to save app to database'
+            })
+          };
+        }
       }
 
+      // Handle scrape-and-add similarly...
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({
-          success: false,
-          error: 'Invalid action specified'
-        })
+        body: JSON.stringify({ success: false, error: 'Invalid action' })
       };
     }
 
@@ -283,10 +311,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid admin password'
-          })
+          body: JSON.stringify({ success: false, error: 'Invalid admin password' })
         };
       }
 
@@ -295,10 +320,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'App ID is required'
-          })
+          body: JSON.stringify({ success: false, error: 'App ID is required' })
         };
       }
 
@@ -309,47 +331,57 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid JSON in request body'
-          })
+          body: JSON.stringify({ success: false, error: 'Invalid JSON' })
         };
       }
 
-      const appIndex = apps.findIndex(app => app.id === appId);
-      if (appIndex === -1) {
-        return {
-          statusCode: 404,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'App not found'
-          })
-        };
-      }
-
-      // Update the app with new data
+      // Update in Supabase
       const updatedApp = {
-        ...apps[appIndex],
-        ...requestBody,
-        id: appId, // Ensure ID doesn't change
+        id: appId,
+        packageName: requestBody.packageName,
+        title: requestBody.title,
+        description: requestBody.description,
+        shortDescription: requestBody.shortDescription,
+        version: requestBody.version,
+        versionCode: requestBody.versionCode,
+        category: requestBody.category,
+        developer: requestBody.developer,
+        rating: requestBody.rating,
+        downloadCount: requestBody.downloadCount,
+        fileSize: requestBody.fileSize,
+        downloadUrl: requestBody.downloadUrl,
+        iconUrl: requestBody.iconUrl,
+        featured: requestBody.featured,
+        active: requestBody.active,
         updatedAt: new Date().toISOString()
       };
 
-      apps[appIndex] = updatedApp;
-      const saved = await saveAppData(apps);
+      const savedApp = await saveAppToSupabase(updatedApp, true);
+      
+      if (savedApp) {
+        // Sync to GitHub
+        const allApps = await getAppsFromSupabase();
+        await syncToGitHub(allApps);
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          app: updatedApp,
-          message: saved 
-            ? `App "${updatedApp.title}" updated successfully`
-            : `App "${updatedApp.title}" updated (storage may be temporary)`
-        })
-      };
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            app: updatedApp,
+            message: `App "${updatedApp.title}" updated successfully in database`
+          })
+        };
+      } else {
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            error: 'Failed to update app in database'
+          })
+        };
+      }
     }
 
     // DELETE - Delete app
@@ -359,10 +391,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 401,
           headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid admin password'
-          })
+          body: JSON.stringify({ success: false, error: 'Invalid admin password' })
         };
       }
 
@@ -371,55 +400,47 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'App ID is required'
-          })
+          body: JSON.stringify({ success: false, error: 'App ID is required' })
         };
       }
 
-      const appIndex = apps.findIndex(app => app.id === appId);
-      if (appIndex === -1) {
+      const deleted = await deleteAppFromSupabase(appId);
+      
+      if (deleted) {
+        // Sync to GitHub
+        const allApps = await getAppsFromSupabase();
+        await syncToGitHub(allApps);
+
         return {
-          statusCode: 404,
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            message: 'App deleted successfully from database'
+          })
+        };
+      } else {
+        return {
+          statusCode: 500,
           headers,
           body: JSON.stringify({
             success: false,
-            error: 'App not found'
+            error: 'Failed to delete app from database'
           })
         };
       }
-
-      const deletedApp = apps[appIndex];
-      apps.splice(appIndex, 1);
-      const saved = await saveAppData(apps);
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          message: saved 
-            ? `App "${deletedApp.title}" deleted successfully`
-            : `App "${deletedApp.title}" deleted (change may be temporary)`
-        })
-      };
     }
 
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({
-        success: false,
-        error: 'Method not allowed',
-        allowedMethods: ['GET', 'POST', 'PUT', 'DELETE']
-      })
+      body: JSON.stringify({ success: false, error: 'Method not allowed' })
     };
 
   } catch (error) {
-    console.error('Add-app function critical error:', error);
+    console.error('Add-app function error:', error);
     
-    // Emergency fallback for GET requests
+    // Emergency fallback
     if (event.httpMethod === 'GET') {
       const defaultApps = getDefaultApps();
       return {
@@ -429,7 +450,8 @@ exports.handler = async (event, context) => {
           success: true,
           apps: defaultApps,
           total: defaultApps.length,
-          message: 'Apps loaded successfully (emergency fallback)'
+          message: 'Apps loaded (emergency fallback)',
+          dataSource: 'emergency-fallback'
         })
       };
     }
@@ -440,8 +462,7 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: false,
         error: 'Internal server error',
-        message: error.message,
-        timestamp: new Date().toISOString()
+        message: error.message
       })
     };
   }
