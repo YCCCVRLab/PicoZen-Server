@@ -28,3 +28,28 @@
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+
+# Configure Netlify Blobs
+[[blobs]]
+  name = "picozen-app-data"
+  function = "add-app"
+
+[[blobs]]
+  name = "picozen-app-data"
+  function = "apps"
+
+[[blobs]]
+  name = "picozen-app-data"
+  function = "categories"
+
+[[blobs]]
+  name = "picozen-app-data"
+  function = "download"
+
+[[blobs]]
+  name = "picozen-app-data"
+  function = "featured"
+
+[[blobs]]
+  name = "picozen-app-data"
+  function = "scrape-app"
