@@ -3,39 +3,43 @@
   "name": "picozen-server",
   "builds": [
     {
-      "src": "api/**/*.js",
+      "src": "server.js",
       "use": "@vercel/node"
     },
     {
-      "src": "public/**/*",
+      "src": "uploads/**/*",
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "dest": "/server.js"
     },
     {
-      "src": "/admin",
-      "dest": "/api/admin"
+      "src": "/admin(.*)",
+      "dest": "/server.js"
     },
     {
       "src": "/images/(.*)",
-      "dest": "/api/images/$1"
+      "dest": "/server.js"
     },
     {
       "src": "/files/(.*)",
-      "dest": "/api/files/$1"
+      "dest": "/server.js"
+    },
+    {
+      "src": "/uploads/(.*)",
+      "dest": "/uploads/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/api/index"
+      "dest": "/server.js"
     }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -48,6 +52,10 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+        },
+        {
+          "key": "Access-Control-Max-Age",
+          "value": "86400"
         }
       ]
     }
@@ -55,11 +63,12 @@
   "env": {
     "NODE_ENV": "production",
     "DATABASE_PATH": "/tmp/picozen.db",
-    "ADMIN_PASSWORD": "admin123"
+    "ADMIN_PASSWORD": "yccc-vr-lab-2025"
   },
   "functions": {
-    "api/**/*.js": {
-      "maxDuration": 30
+    "server.js": {
+      "maxDuration": 30,
+      "memory": 1024
     }
   }
 }
