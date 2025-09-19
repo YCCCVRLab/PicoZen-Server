@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicoZen API Server - YCCC VR Lab</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 40px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #4a9eff;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+        .api-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .endpoint {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 5px 0;
+            display: block;
+        }
+        .links {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+        .links a {
+            color: #4a9eff;
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 1px solid #4a9eff;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .links a:hover {
+            background: #4a9eff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🥽 PicoZen API Server</h1>
+        <p>Serverless backend for the PicoZen VR app store, powered by Netlify Functions.</p>
+        
+        <div class="api-info">
+            <h3>Available API Endpoints:</h3>
+            <code class="endpoint">GET /api/apps - List all VR apps</code>
+            <code class="endpoint">GET /api/apps/:id - Get app details</code>
+            <code class="endpoint">GET /api/categories - List categories</code>
+            <code class="endpoint">GET /api/featured - Get featured apps</code>
+            <code class="endpoint">GET /api/download/:id - Download app APK</code>
+        </div>
+        
+        <div class="api-info">
+            <h3>Current Apps:</h3>
+            <div id="apps-list">Loading...</div>
+        </div>
+        
+        <div class="links">
+            <a href="https://ycccrlab.github.io/PicoZen-Web/">Web Interface</a>
+            <a href="https://github.com/YCCCVRLab/PicoZen-Web">GitHub</a>
+            <a href="/admin">Admin Panel</a>
+        </div>
+    </div>
+    
+    <script>
+        // Load and display current apps
+        fetch('/api/apps')
+            .then(r => r.json())
+            .then(data => {
+                const appsList = document.getElementById('apps-list');
+                if (data.success && data.apps.length > 0) {
+                    appsList.innerHTML = data.apps.map(app => `
+                        <div style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                            <strong>${app.title}</strong> by ${app.developer}<br>
+                            <small>Category: ${app.category} | Downloads: ${app.downloadCount}</small>
+                        </div>
+                    `).join('');
+                } else {
+                    appsList.innerHTML = 'No apps available';
+                }
+            })
+            .catch(err => {
+                document.getElementById('apps-list').innerHTML = 'Error loading apps';
+            });
+    </script>
+</body>
+</html>
