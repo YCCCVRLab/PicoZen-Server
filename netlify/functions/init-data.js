@@ -1,4 +1,4 @@
-const { set } = require("@netlify/blobs");
+const { getStore } = require("@netlify/blobs");
 
 // Default app data with UbiSim and sample apps
 function getDefaultApps() {
@@ -151,12 +151,10 @@ exports.handler = async (event, context) => {
 
   try {
     const defaultApps = getDefaultApps();
+    const store = getStore("picozen-app-data");
     
     // Initialize the blob store with default data
-    await set("picozen-app-data", { 
-      apps: defaultApps, 
-      nextId: defaultApps.length + 1 
-    }, { type: "json" });
+    await store.set("apps", defaultApps, { type: "json" });
 
     return {
       statusCode: 200,
