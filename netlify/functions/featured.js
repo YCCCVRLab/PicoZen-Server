@@ -1,0 +1,87 @@
+// Featured apps endpoint
+const apps = [
+  {
+    id: 1,
+    packageName: 'com.ubisim.player',
+    title: 'UbiSim',
+    shortDescription: 'Immersive VR nursing simulation platform for clinical training and skill development',
+    category: 'Education',
+    developer: 'UbiSim',
+    rating: 4.8,
+    downloadCount: 1250,
+    iconUrl: 'https://scontent-lga3-3.oculuscdn.com/v/t64.5771-25/57570314_1220899138305712_3549230735456268391_n.jpg?stp=dst-jpg_q92_s720x720_tt6&_nc_cat=108&ccb=1-7&_nc_sid=6e7a0a&_nc_ohc=abiM3cUS1t0Q7kNvwEG6f1M&_nc_oc=Adlp9UfoNVCqrK-SF2vUQyBzNMkhhmJ3jvqEt7cfDM_qYnrQBVzTmcC-E25FLjrIr8Y&_nc_zt=3&_nc_ht=scontent-lga3-3.oculuscdn.com&oh=00_AfbbeH7p7KL9MnwLkOJPJMiKRTOgGj_LNCz46TKiUK_knA&oe=68D3347B',
+    featured: true,
+    active: true
+  }
+];
+
+exports.handler = async (event, context) => {
+  const { httpMethod, queryStringParameters } = event;
+  
+  // Enable CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Content-Type': 'application/json'
+  };
+
+  // Handle preflight requests
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
+  }
+
+  if (httpMethod !== 'GET') {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
+  }
+
+  try {
+    const { limit = 10 } = queryStringParameters || {};
+    const limitNum = parseInt(limit);
+    
+    // Filter featured apps
+    const featuredApps = apps
+      .filter(app => app.featured && app.active)
+      .slice(0, limitNum)
+      .map(app => ({
+        id: app.id,
+        packageName: app.packageName,
+        title: app.title,
+        shortDescription: app.shortDescription,
+        category: app.category,
+        developer: app.developer,
+        rating: app.rating,
+        downloadCount: app.downloadCount,
+        downloadUrl: `/api/download/${app.id}`,
+        iconUrl: app.iconUrl
+      }));
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        apps: featuredApps
+      })
+    };
+    
+  } catch (error) {
+    console.error('Featured function error:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        message: error.message
+      })
+    };
+  }
+};
