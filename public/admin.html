@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicoZen Admin - YCCC VR Lab</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .header {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        .header h1 {
+            color: #4a9eff;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .card h2 {
+            color: #4a9eff;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #ccc;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+        }
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .btn {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #357ae8; }
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .btn-danger {
+            background: #e74c3c;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        .url-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .url-input-group input {
+            flex: 1;
+        }
+        .url-input-group button {
+            padding: 12px 16px;
+        }
+        .store-urls {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .store-urls h4 {
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        .url-list {
+            list-style: none;
+        }
+        .url-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .url-list li:last-child {
+            border-bottom: none;
+        }
+        .store-badge {
+            background: #4a9eff;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .store-badge.meta { background: #1877f2; }
+        .store-badge.sidequest { background: #ff6b35; }
+        .store-badge.steam { background: #171a21; }
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .app-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+        .app-card:hover {
+            transform: translateY(-2px);
+            border-color: #4a9eff;
+        }
+        .app-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .app-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: #333;
+            background-size: cover;
+            background-position: center;
+        }
+        .app-info h3 {
+            margin: 0;
+            color: #fff;
+            font-size: 16px;
+        }
+        .app-info .developer {
+            color: #aaa;
+            font-size: 14px;
+        }
+        .app-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #888;
+        }
+        .success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4caf50;
+            color: #4caf50;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            color: #f44336;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #4a9eff;
+        }
+        .spinner {
+            border: 3px solid rgba(74, 158, 255, 0.3);
+            border-top: 3px solid #4a9eff;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 25px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.3);
+        }
+        .tab {
+            flex: 1;
+            padding: 15px;
+            background: transparent;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab.active {
+            background: #4a9eff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🥽 PicoZen Admin</h1>
+        <p>Manage your VR app store with automatic scraping from Meta Quest, SideQuest, and Steam</p>
+    </div>
+    
+    <div class="container">
+        <div id="message"></div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('scrape')">🔍 Add from Store URLs</button>
+            <button class="tab" onclick="showTab('manual')">✏️ Manual Add</button>
+            <button class="tab" onclick="showTab('manage')">📱 Manage Apps</button>
+        </div>
+        
+        <!-- Store URL Scraping Tab -->
+        <div id="scrape-tab" class="tab-content active">
+            <div class="card">
+                <h2>Add Apps from Store URLs</h2>
+                <p style="margin-bottom: 20px; color: #aaa;">
+                    Paste store URLs from Meta Quest Store, SideQuest, or Steam VR. The system will automatically scrape app information, images, and download links.
+                </p>
+                
+                <div class="store-urls">
+                    <h4>Supported Store URLs:</h4>
+                    <ul class="url-list" id="url-list">
+                        <li style="border: none; padding: 5px 0; color: #666;">
+                            No URLs added yet. Add some store URLs below.
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="form-group">
+                    <label>Add Store URL:</label>
+                    <div class="url-input-group">
+                        <input type="url" id="store-url-input" placeholder="https://www.oculus.com/experiences/quest/... or https://sidequestvr.com/app/... or https://store.steampowered.com/app/...">
+                        <button type="button" onclick="addStoreUrl()">Add URL</button>
+                    </div>
+                    <small style="color: #888;">
+                        Supported: Meta Quest Store, SideQuest, Steam VR
+                    </small>
+                </div>
+                
+                <button class="btn" onclick="scrapeAndAddApps()" id="scrape-btn">
+                    🔍 Scrape & Add Apps
+                </button>
+            </div>
+        </div>
+        
+        <!-- Manual Add Tab -->
+        <div id="manual-tab" class="tab-content">
+            <div class="card">
+                <h2>Manually Add App</h2>
+                <form id="manual-app-form">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <div class="form-group">
+                                <label>App Title *</label>
+                                <input type="text" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Developer *</label>
+                                <input type="text" name="developer" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select name="category" style="width: 100%; padding: 12px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(0,0,0,0.3); color: #e0e0e0;">
+                                    <option value="Games">Games</option>
+                                    <option value="Education">Education</option>
+                                    <option value="Productivity">Productivity</option>
+                                    <option value="Social">Social</option>
+                                    <option value="Health & Fitness">Health & Fitness</option>
+                                    <option value="Entertainment">Entertainment</option>
+                                    <option value="Tools">Tools</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Version</label>
+                                <input type="text" name="version" placeholder="1.0.0">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label>Download URL (APK)</label>
+                                <input type="url" name="downloadUrl" placeholder="https://...">
+                            </div>
+                            <div class="form-group">
+                                <label>Icon URL</label>
+                                <input type="url" name="iconUrl" placeholder="https://...">
+                            </div>
+                            <div class="form-group">
+                                <label>Rating (0-5)</label>
+                                <input type="number" name="rating" min="0" max="5" step="0.1" placeholder="4.5">
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" name="featured"> Featured App
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" placeholder="Detailed app description..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn">Add App Manually</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Manage Apps Tab -->
+        <div id="manage-tab" class="tab-content">
+            <div class="card">
+                <h2>Current Apps</h2>
+                <div id="apps-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading apps...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let storeUrls = [];
+        
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+            
+            // Load apps if manage tab is selected
+            if (tabName === 'manage') {
+                loadApps();
+            }
+        }
+        
+        function addStoreUrl() {
+            const input = document.getElementById('store-url-input');
+            const url = input.value.trim();
+            
+            if (!url) {
+                showMessage('Please enter a URL', 'error');
+                return;
+            }
+            
+            // Validate URL format
+            const supportedPatterns = [
+                /^https:\/\/(www\.)?oculus\.com\/experiences\/(quest|rift)\/\d+/,
+                /^https:\/\/(www\.)?sidequestvr\.com\/app\/\d+/,
+                /^https:\/\/(store\.)?steampowered\.com\/app\/\d+/
+            ];
+            
+            const isSupported = supportedPatterns.some(pattern => pattern.test(url));
+            
+            if (!isSupported) {
+                showMessage('Unsupported URL format. Please use Meta Quest Store, SideQuest, or Steam VR URLs.', 'error');
+                return;
+            }
+            
+            if (storeUrls.includes(url)) {
+                showMessage('URL already added', 'error');
+                return;
+            }
+            
+            storeUrls.push(url);
+            input.value = '';
+            updateUrlList();
+            showMessage('URL added successfully', 'success');
+        }
+        
+        function updateUrlList() {
+            const urlList = document.getElementById('url-list');
+            
+            if (storeUrls.length === 0) {
+                urlList.innerHTML = '<li style="border: none; padding: 5px 0; color: #666;">No URLs added yet. Add some store URLs below.</li>';
+                return;
+            }
+            
+            urlList.innerHTML = storeUrls.map((url, index) => {
+                let storeName = 'Unknown';
+                let storeClass = '';
+                
+                if (url.includes('oculus.com')) {
+                    storeName = 'Meta Quest';
+                    storeClass = 'meta';
+                } else if (url.includes('sidequestvr.com')) {
+                    storeName = 'SideQuest';
+                    storeClass = 'sidequest';
+                } else if (url.includes('steampowered.com')) {
+                    storeName = 'Steam VR';
+                    storeClass = 'steam';
+                }
+                
+                return `
+                    <li>
+                        <div>
+                            <span class="store-badge ${storeClass}">${storeName}</span>
+                            <span style="margin-left: 10px; font-size: 14px;">${url}</span>
+                        </div>
+                        <button onclick="removeUrl(${index})" style="background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Remove</button>
+                    </li>
+                `;
+            }).join('');
+        }
+        
+        function removeUrl(index) {
+            storeUrls.splice(index, 1);
+            updateUrlList();
+        }
+        
+        async function scrapeAndAddApps() {
+            if (storeUrls.length === 0) {
+                showMessage('Please add at least one store URL', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('scrape-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; margin-right: 8px; display: inline-block;"></div>Scraping...';
+            
+            try {
+                const response = await fetch('/api/add-app', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'scrape-and-add',
+                        urls: storeUrls
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`Successfully added ${result.apps.length} apps!`, 'success');
+                    storeUrls = [];
+                    updateUrlList();
+                    
+                    // Show added apps
+                    if (result.apps.length > 0) {
+                        const appsList = result.apps.map(app => 
+                            `• ${app.title} by ${app.developer} (${app.category})`
+                        ).join('<br>');
+                        showMessage(`Added apps:<br>${appsList}`, 'success');
+                    }
+                } else {
+                    showMessage(`Error: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                showMessage(`Network error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔍 Scrape & Add Apps';
+            }
+        }
+        
+        async function loadApps() {
+            const container = document.getElementById('apps-container');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading apps...</div>';
+            
+            try {
+                const response = await fetch('/api/add-app');
+                const result = await response.json();
+                
+                if (result.success && result.apps.length > 0) {
+                    container.innerHTML = '<div class="apps-grid">' + 
+                        result.apps.map(app => `
+                            <div class="app-card">
+                                <div class="app-header">
+                                    <div class="app-icon" style="background-image: url('${app.iconUrl || ''}');"></div>
+                                    <div class="app-info">
+                                        <h3>${app.title}</h3>
+                                        <div class="developer">${app.developer}</div>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 10px;">
+                                    <span style="background: #4a9eff; color: white; padding: 2px 6px; border-radius: 10px; font-size: 12px;">
+                                        ${app.category}
+                                    </span>
+                                    ${app.featured ? '<span style="background: #ffd700; color: #000; padding: 2px 6px; border-radius: 10px; font-size: 12px; margin-left: 5px;">Featured</span>' : ''}
+                                </div>
+                                <div class="app-meta">
+                                    <span>v${app.version}</span>
+                                    <span>${app.downloadCount} downloads</span>
+                                </div>
+                            </div>
+                        `).join('') + '</div>';
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No apps found. Add some apps using the tabs above!</p>';
+                }
+                
+            } catch (error) {
+                container.innerHTML = '<p style="text-align: center; color: #f44336; padding: 40px;">Error loading apps: ' + error.message + '</p>';
+            }
+        }
+        
+        // Manual form submission
+        document.getElementById('manual-app-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const appData = {
+                title: formData.get('title'),
+                developer: formData.get('developer'),
+                category: formData.get('category'),
+                version: formData.get('version') || '1.0.0',
+                description: formData.get('description'),
+                downloadUrl: formData.get('downloadUrl'),
+                iconUrl: formData.get('iconUrl'),
+                rating: formData.get('rating') ? parseFloat(formData.get('rating')) : 0,
+                featured: formData.has('featured')
+            };
+            
+            try {
+                const response = await fetch('/api/add-app', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'add-manual',
+                        appData: appData
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`App "${result.app.title}" added successfully!`, 'success');
+                    e.target.reset();
+                } else {
+                    showMessage(`Error: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                showMessage(`Network error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Allow Enter key to add URLs
+        document.getElementById('store-url-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addStoreUrl();
+            }
+        });
+        
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        // Load apps on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadApps();
+        });
+    </script>
+</body>
+</html>
