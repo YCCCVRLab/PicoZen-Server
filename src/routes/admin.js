@@ -1,52 +1,10 @@
 const express = require('express');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
-const sharp = require('sharp');
 const { addApp, getApp, getApps, getDB } = require('../database');
 const { scrapeAppFromUrl, getFileSizeFromUrl, formatFileSize, parseFileSize } = require('../scrapers');
 
 const router = express.Router();
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'temp');
-        await fs.mkdir(uploadDir, { recursive: true });
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 500 * 1024 * 1024, // 500MB limit for APK files
-    },
-    fileFilter: (req, file, cb) => {
-        if (file.fieldname === 'apk') {
-            // APK files
-            if (file.mimetype === 'application/vnd.android.package-archive' || 
-                file.originalname.toLowerCase().endsWith('.apk')) {
-                cb(null, true);
-            } else {
-                cb(new Error('Only APK files are allowed for app uploads'));
-            }
-        } else if (file.fieldname === 'icon' || file.fieldname.startsWith('screenshot')) {
-            // Image files
-            if (file.mimetype.startsWith('image/')) {
-                cb(null, true);
-            } else {
-                cb(new Error('Only image files are allowed for icons and screenshots'));
-            }
-        } else {
-            cb(new Error('Unknown file field'));
-        }
-    }
-});
 
 // Simple authentication middleware (in production, use proper JWT)
 function requireAuth(req, res, next) {
@@ -142,7 +100,7 @@ router.get('/', (req, res) => {
                 <div id="manual" class="tab-content">
                     <div class="section">
                         <h2>📱 Add App Manually</h2>
-                        <form id="addAppForm" enctype="multipart/form-data">
+                        <form id="addAppForm">
                             <div class="form-group">
                                 <label>Package Name:</label>
                                 <input type="text" id="packageName" required>
@@ -189,13 +147,9 @@ router.get('/', (req, res) => {
                                 <textarea id="description" rows="4"></textarea>
                             </div>
                             <div class="form-group">
-                                <label>Icon Image:</label>
-                                <input type="file" id="iconFile" accept="image/*">
-                            </div>
-                            <div class="form-group">
-                                <label>APK File (optional):</label>
-                                <input type="file" id="apkFile" accept=".apk">
-                                <small>If provided, will be uploaded to server instead of using download URL</small>
+                                <label>Icon Image URL:</label>
+                                <input type="url" id="iconUrl" placeholder="https://example.com/icon.png">
+                                <small>Provide a direct URL for the icon image.</small>
                             </div>
                             <button type="submit">➕ Add App</button>
                         </form>
@@ -402,14 +356,6 @@ router.get('/', (req, res) => {
                     }
                 }
                 
-                function formatFileSize(bytes) {
-                    if (!bytes || bytes === 0) return '0 B';
-                    const sizes = ['B', 'KB', 'MB', 'GB'];
-                    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-                    const size = bytes / Math.pow(1024, i);
-                    return size.toFixed(2) + ' ' + sizes[i];
-                }
-                
                 // Manual form submission
                 document.getElementById('addAppForm').addEventListener('submit', async (e) => {
                     e.preventDefault();
@@ -422,7 +368,8 @@ router.get('/', (req, res) => {
                         version: document.getElementById('version').value,
                         shortDescription: document.getElementById('shortDescription').value,
                         description: document.getElementById('description').value,
-                        downloadUrl: document.getElementById('downloadUrl').value
+                        downloadUrl: document.getElementById('downloadUrl').value,
+                        iconUrl: document.getElementById('iconUrl').value // Now directly from URL
                     };
                     
                     // Convert file size from MB to bytes
@@ -587,20 +534,17 @@ router.put('/apps/:id', requireAuth, async (req, res) => {
         
         const db = getDB();
         const setClause = Object.keys(updates)
-            .map(key => `${key} = ?`)
+            .map(key => `${key} = $1`)
             .join(', ');
         const values = [...Object.values(updates), appId];
         
-        await new Promise((resolve, reject) => {
-            db.run(
-                `UPDATE apps SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                values,
-                function(err) {
-                    if (err) reject(err);
-                    else resolve();
-                }
-            );
-        });
+        // Ensure the correct number of placeholders for PostgreSQL
+        const placeholders = values.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ');
+        
+        await db.query(
+            `UPDATE apps SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+            values
+        );
         
         res.json({
             success: true,
@@ -631,16 +575,10 @@ router.delete('/apps/:id', requireAuth, async (req, res) => {
         
         const db = getDB();
         
-        await new Promise((resolve, reject) => {
-            db.run(
-                'UPDATE apps SET active = FALSE WHERE id = ?',
-                [appId],
-                function(err) {
-                    if (err) reject(err);
-                    else resolve();
-                }
-            );
-        });
+        await db.query(
+            'UPDATE apps SET active = FALSE WHERE id = $1',
+            [appId]
+        );
         
         res.json({
             success: true,
@@ -652,100 +590,6 @@ router.delete('/apps/:id', requireAuth, async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to delete app: ' + error.message
-        });
-    }
-});
-
-// Upload files (APK, icons, screenshots)
-router.post('/upload', requireAuth, upload.fields([
-    { name: 'apk', maxCount: 1 },
-    { name: 'icon', maxCount: 1 },
-    { name: 'screenshots', maxCount: 10 }
-]), async (req, res) => {
-    try {
-        const files = req.files;
-        const results = {};
-        
-        // Process APK file
-        if (files.apk && files.apk[0]) {
-            const apkFile = files.apk[0];
-            const finalDir = path.join(__dirname, '..', '..', 'uploads', 'files');
-            await fs.mkdir(finalDir, { recursive: true });
-            
-            const finalPath = path.join(finalDir, apkFile.filename);
-            await fs.rename(apkFile.path, finalPath);
-            
-            // Get actual file size
-            const stats = await fs.stat(finalPath);
-            
-            results.apk = {
-                url: `/files/${apkFile.filename}`,
-                path: finalPath,
-                size: stats.size,
-                sizeFormatted: formatFileSize(stats.size),
-                originalName: apkFile.originalname
-            };
-        }
-        
-        // Process icon
-        if (files.icon && files.icon[0]) {
-            const iconFile = files.icon[0];
-            const finalDir = path.join(__dirname, '..', '..', 'uploads', 'images');
-            await fs.mkdir(finalDir, { recursive: true });
-            
-            const finalPath = path.join(finalDir, iconFile.filename);
-            
-            // Resize and optimize icon
-            await sharp(iconFile.path)
-                .resize(512, 512, { fit: 'cover' })
-                .png({ quality: 90 })
-                .toFile(finalPath);
-            
-            // Remove temp file
-            await fs.unlink(iconFile.path);
-            
-            results.icon = {
-                url: `/images/${iconFile.filename}`,
-                path: finalPath
-            };
-        }
-        
-        // Process screenshots
-        if (files.screenshots) {
-            results.screenshots = [];
-            
-            for (const screenshot of files.screenshots) {
-                const finalDir = path.join(__dirname, '..', '..', 'uploads', 'images');
-                await fs.mkdir(finalDir, { recursive: true });
-                
-                const finalPath = path.join(finalDir, screenshot.filename);
-                
-                // Resize and optimize screenshot
-                await sharp(screenshot.path)
-                    .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
-                    .jpeg({ quality: 85 })
-                    .toFile(finalPath);
-                
-                // Remove temp file
-                await fs.unlink(screenshot.path);
-                
-                results.screenshots.push({
-                    url: `/images/${screenshot.filename}`,
-                    path: finalPath
-                });
-            }
-        }
-        
-        res.json({
-            success: true,
-            files: results
-        });
-        
-    } catch (error) {
-        console.error('Error uploading files:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to upload files: ' + error.message
         });
     }
 });
