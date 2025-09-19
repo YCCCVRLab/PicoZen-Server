@@ -87,8 +87,7 @@ exports.handler = async (event, context) => {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'App not found' })
       };
-    }
-    
+    }\n    
     if (!app.downloadUrl) {
       return {
         statusCode: 404,
