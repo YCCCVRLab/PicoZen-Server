@@ -66,9 +66,9 @@ const schema = {
 // Initialize database connection pool and schema
 async function initDatabase() {
     try {
-        const connectionString = process.env.DATABASE_URL; // Vercel integration variable
+        const connectionString = process.env.POSTGRES_URL; // Use POSTGRES_URL from Vercel integration
         if (!connectionString) {
-            throw new Error("DATABASE_URL environment variable is not set.");
+            throw new Error("POSTGRES_URL environment variable is not set by Vercel integration.");
         }
 
         pool = new Pool({
@@ -78,7 +78,7 @@ async function initDatabase() {
 
         // Test connection
         await pool.query('SELECT 1');
-        console.log('✅ Connected to PostgreSQL database.');
+        console.log('✅ Connected to PostgreSQL database via Vercel integration.');
 
         // Create tables
         for (const tableName of Object.keys(schema)) {
@@ -186,7 +186,7 @@ const dbHelpers = {
                     countQuery += ' AND (title ILIKE $1 OR description ILIKE $1 OR developer ILIKE $1)';
                     countParams.push(searchParam);
                 } else {
-                    countQuery += ' AND (title ILIKE $' + (countParams.length + 1) + ' OR description ILIKE $' + (countParams.length + 1) + ' OR developer ILIKE $' + (countParams.length + 1) + ')';
+                    countQuery += ' AND (title ILIKE $' + (countParams.length + 1) + ' OR a.description ILIKE $' + (countParams.length + 1) + ' OR a.developer ILIKE $' + (countParams.length + 1) + ')';
                     countParams.push(searchParam);
                 }
             }
