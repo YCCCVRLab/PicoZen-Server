@@ -6,5 +6,16 @@
       "source": "/(.*)",
       "destination": "/api"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "DATABASE_URL": "postgresql://postgres:[YOUR-PASSWORD]@db.elragqsejbarytfkiyxc.supabase.co:5432/postgres",
+    "ADMIN_PASSWORD": "yccc-vr-lab-2025"
+  },
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
 }
