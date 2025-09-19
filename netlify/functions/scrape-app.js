@@ -1,4 +1,3 @@
-// Web scraping function for VR store pages
 const fetch = require('node-fetch');
 
 // Store-specific scrapers
@@ -229,7 +228,7 @@ function extractSteamScreenshots(html) {
   const matches = html.match(/<a[^>]+class="highlight_screenshot_link"[^>]+href="([^"]+)"/g) || [];
   matches.forEach((match, index) => {
     const urlMatch = match.match(/href="([^"]+)"/);
-    if (urlMatch && index < 5) {
+    if (urlMatch && index < 5) { // Limit to 5 screenshots
       screenshots.push({
         imageUrl: urlMatch[1],
         caption: `Screenshot ${index + 1}`,
@@ -272,55 +271,11 @@ exports.handler = async (event, context) => {
         headers,
         body: JSON.stringify({ error: 'URLs array is required' })
       };
-    }
-
+    }\n
     const results = [];
     
     for (const url of urls) {
       let scraped = null;
       
-      // Find matching scraper
-      for (const [key, scraper] of Object.entries(scrapers)) {
-        if (scraper.urlPattern.test(url)) {
-          console.log(`Scraping ${url} with ${scraper.name} scraper`);
-          scraped = await scraper.scrape(url);
-          if (scraped) {
-            scraped.sourceUrl = url;
-            scraped.sourceStore = scraper.name;
-          }
-          break;
-        }
-      }
-      
-      if (scraped) {
-        results.push(scraped);
-      } else {
-        results.push({
-          error: 'No suitable scraper found or scraping failed',
-          url: url
-        });
-      }
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        results: results,
-        message: `Scraped ${results.length} URLs`
-      })
-    };
-
-  } catch (error) {
-    console.error('Scraping function error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        error: 'Internal server error',
-        message: error.message
-      })
-    };
-  }
-};
+      // Find matching scraper\n      for (const [key, scraper] of Object.entries(scrapers)) {\n        if (scraper.urlPattern.test(url)) {\n          console.log(`Scraping ${url} with ${scraper.name} scraper`);\n          scraped = await scraper.scrape(url);\n          if (scraped) {\n            scraped.sourceUrl = url;\n            scraped.sourceStore = scraper.name;\n          }\n          break;\n        }\n      }\n      \n      if (scraped) {\n        results.push(scraped);\n      } else {\n        results.push({\n          error: 'No suitable scraper found or scraping failed',\n          url: url\n        });\n      }\n    }\n\n    return {\n      statusCode: 200,\n      headers,\n      body: JSON.stringify({\n        success: true,\n        results: results,\n        message: `Scraped ${results.length} URLs`\n      })\n    };\n
+  } catch (error) {\n    console.error('Scraping function error:', error);\n    return {\n      statusCode: 500,\n      headers,\n      body: JSON.stringify({\n        error: 'Internal server error',\n        message: error.message\n      })\n    };\n  }\n};
