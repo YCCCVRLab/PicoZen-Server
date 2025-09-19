@@ -2,8 +2,35 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
 const { getApps, getApp, recordDownload, getCategories } = require('../database');
+const { scrapeAppFromUrl } = require('../scrapers');
 
 const router = express.Router();
+
+// Scrape app data from store URL
+router.post('/scrape', async (req, res) => {
+    try {
+        const { url } = req.body;
+        
+        if (!url) {
+            return res.status(400).json({
+                success: false,
+                error: 'URL is required'
+            });
+        }
+        
+        console.log(`Scraping URL: ${url}`);
+        const result = await scrapeAppFromUrl(url);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('Error in scrape endpoint:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to scrape URL: ' + error.message
+        });
+    }
+});
 
 // Get all apps with pagination and filtering
 router.get('/apps', async (req, res) => {
