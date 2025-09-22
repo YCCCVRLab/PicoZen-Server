@@ -15,6 +15,12 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "PGSSLMODE": "no-verify"
+    "PGSSLMODE": "no-verify",
+    "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+  },
+  "functions": {
+    "server.js": {
+      "maxDuration": 30
+    }
   }
 }
