@@ -8,7 +8,7 @@ const fs = require('fs').promises;
 const rateLimit = require('express-rate-limit');
 
 // Import modules (adjust paths for api directory)
-const { initDatabase, getDB } = require('../src/database');
+const database = require('../src/database'); // Import the entire database module
 const apiRoutes = require('../src/routes/api');
 const adminRoutes = require('../src/routes/admin');
 const { errorHandler, notFound } = require('../src/middleware/errorHandlers');
@@ -22,7 +22,7 @@ async function ensureDatabase() {
     if (!dbInitialized) {
         try {
             console.log('🔄 Initializing database for Vercel...');
-            await initDatabase();
+            await database.initDatabase(); // Call from the database module
             console.log('✅ Database initialized successfully');
             dbInitialized = true;
         } catch (error) {
@@ -54,253 +54,163 @@ app.options('*', (req, res) => {
     res.sendStatus(200);
 });
 
-// Rate limiting - more generous for VR apps
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 2000, // Higher limit for VR headsets
-    message: { error: 'Too many requests from this IP, please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => {
-        return req.path === '/api/health' || req.path === '/health';
-    }
-});
-app.use(limiter);
-
-// Body parsing and compression
+// Compression and logging
 app.use(compression());
+app.use(morgan('combined'));
+
+// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
-if (process.env.NODE_ENV !== 'production') {
-    app.use(morgan('dev'));
-}
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 1000, // Increased for VR app usage
+    message: {
+        error: 'Too many requests from this IP, please try again later.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use(limiter);
 
-// Health check endpoint - critical for VR app connectivity
-app.get('/health', (req, res) => {
-    res.json({ 
-        success: true,
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        server: 'PicoZen-Server-Vercel',
-        version: '1.0.1',
-        database: dbInitialized ? 'ready' : 'initializing'
-    });
+// Trust proxy for Vercel
+app.set('trust proxy', 1);
+
+// Initialize database middleware
+app.use(async (req, res, next) => {
+    await ensureDatabase();
+    next();
 });
 
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        success: true,
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        server: 'PicoZen-Server-Vercel',
-        version: '1.0.1',
-        database: dbInitialized ? 'ready' : 'initializing'
-    });
-});
+// Static file serving
+app.use('/images', express.static(path.join(__dirname, '..', 'public', 'images')));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Test endpoint for debugging VR app issues
-app.get('/test', (req, res) => {
+// Root endpoint
+app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: 'PicoZen Server is running on Vercel!',
+        message: 'PicoZen Server API',
+        version: '1.0.0',
         timestamp: new Date().toISOString(),
-        platform: 'Vercel Serverless',
-        endpoints: {
-            health: '/health',
-            apps: '/apps',
-            categories: '/categories',
-            search: '/search',
-            admin: '/admin'
-        },
-        cors: 'enabled',
-        database: dbInitialized ? 'connected' : 'connecting'
-    });
-});
-
-app.get('/api/test', (req, res) => {
-    res.json({
-        success: true,
-        message: 'PicoZen Server API is working on Vercel!',
-        timestamp: new Date().toISOString(),
-        platform: 'Vercel Serverless',
         endpoints: {
             health: '/api/health',
             apps: '/api/apps',
             categories: '/api/categories',
             search: '/api/search',
-            admin: '/admin'
-        },
-        cors: 'enabled',
-        database: dbInitialized ? 'connected' : 'connecting'
+            admin: '/admin',
+            docs: 'https://github.com/YCCCVRLab/PicoZen-Server'
+        }
     });
-});
-
-// Database initialization middleware
-app.use(async (req, res, next) => {
-    try {
-        await ensureDatabase();
-        next();
-    } catch (error) {
-        console.error('Database middleware error:', error);
-        next();
-    }
 });
 
 // API Routes
 app.use('/api', apiRoutes);
+
+// Admin Routes  
 app.use('/admin', adminRoutes);
 
-// Direct routes (without /api prefix)
-app.use('/', apiRoutes);
-
-// Root endpoint - serve store interface
-app.get('/', async (req, res) => {
-    try {
-        res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>🥽 PicoZen VR App Store</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { 
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                        background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
-                        color: #ffffff; min-height: 100vh; display: flex; flex-direction: column;
-                    }
-                    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; flex: 1; }
-                    .header { text-align: center; margin-bottom: 60px; }
-                    .logo { font-size: 4rem; margin-bottom: 20px; }
-                    .title { 
-                        font-size: 3.5rem; font-weight: 700; margin-bottom: 15px;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                        background-clip: text;
-                    }
-                    .subtitle { font-size: 1.3rem; color: #b3b3b3; margin-bottom: 30px; }
-                    .status-card { 
-                        background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
-                        border-radius: 20px; padding: 40px; margin: 30px 0; 
-                        border: 1px solid rgba(255, 255, 255, 0.1);
-                        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                    }
-                    .status-header { display: flex; align-items: center; justify-content: center; margin-bottom: 25px; }
-                    .status-icon { font-size: 2rem; margin-right: 15px; }
-                    .status-title { font-size: 1.8rem; font-weight: 600; }
-                    .badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 25px 0; }
-                    .badge { 
-                        background: linear-gradient(135deg, #4CAF50, #45a049);
-                        color: white; padding: 8px 16px; border-radius: 25px; 
-                        font-size: 0.9rem; font-weight: 500;
-                    }
-                    .endpoints { text-align: left; max-width: 600px; margin: 30px auto; }
-                    .endpoints h4 { color: #667eea; margin-bottom: 20px; font-size: 1.2rem; }
-                    .endpoint { 
-                        background: rgba(0, 0, 0, 0.3); padding: 12px 20px; margin: 8px 0; 
-                        border-radius: 10px; font-family: 'Monaco', 'Menlo', monospace; 
-                        font-size: 0.95rem; border-left: 4px solid #667eea;
-                    }
-                    .actions { text-align: center; margin: 40px 0; }
-                    .btn { 
-                        background: linear-gradient(135deg, #667eea, #764ba2);
-                        color: white; border: none; padding: 15px 30px; 
-                        border-radius: 12px; cursor: pointer; text-decoration: none; 
-                        display: inline-block; margin: 10px; font-size: 1rem; font-weight: 500;
-                        transition: transform 0.2s, box-shadow 0.2s;
-                    }
-                    .btn:hover { 
-                        transform: translateY(-2px); 
-                        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-                    }
-                    .footer { 
-                        text-align: center; padding: 40px 20px; 
-                        border-top: 1px solid rgba(255, 255, 255, 0.1);
-                        background: rgba(0, 0, 0, 0.2);
-                    }
-                    .footer h3 { color: #667eea; margin-bottom: 10px; }
-                    .footer p { color: #888; margin: 5px 0; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <div class="logo">🥽</div>
-                        <h1 class="title">PicoZen Server</h1>
-                        <p class="subtitle">VR App Store Backend - Running on Vercel!</p>
+// Serve a basic web interface
+app.get('/store', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>PicoZen VR App Store</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0a0a0a; color: white; }
+                .container { max-width: 1200px; margin: 0 auto; }
+                .header { text-align: center; margin-bottom: 40px; }
+                .logo { font-size: 48px; font-weight: bold; color: #00d4ff; margin-bottom: 10px; }
+                .tagline { font-size: 18px; color: #888; }
+                .section { background: #1a1a1a; border-radius: 10px; padding: 30px; margin-bottom: 20px; }
+                .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 30px; }
+                .feature { background: #2a2a2a; padding: 20px; border-radius: 8px; }
+                .feature h3 { color: #00d4ff; margin-bottom: 10px; }
+                .api-endpoint { background: #333; padding: 10px; border-radius: 5px; font-family: monospace; margin: 5px 0; }
+                .btn { display: inline-block; background: #00d4ff; color: black; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px 5px; }
+                .btn:hover { background: #00b8e6; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">PicoZen</div>
+                    <div class="tagline">VR App Store Backend Server</div>
+                </div>
+                
+                <div class="section">
+                    <h2>🚀 Server Status: Online</h2>
+                    <p>Welcome to the PicoZen VR App Store backend server. This API powers VR app distribution for Quest, Pico, and other VR headsets.</p>
+                    
+                    <a href="/api/health" class="btn">Health Check</a>
+                    <a href="/api/apps" class="btn">Browse Apps</a>
+                    <a href="/admin" class="btn">Admin Panel</a>
+                </div>
+                
+                <div class="feature-grid">
+                    <div class="feature">
+                        <h3>📱 VR App Management</h3>
+                        <p>Complete app store backend with metadata, screenshots, and download tracking.</p>
+                        <div class="api-endpoint">GET /api/apps</div>
+                        <div class="api-endpoint">GET /api/apps/:id</div>
                     </div>
                     
-                    <div class="status-card">
-                        <div class="status-header">
-                            <span class="status-icon">✅</span>
-                            <span class="status-title">Server Online & Ready</span>
-                        </div>
-                        
-                        <div class="badges">
-                            <div class="badge">🚀 Vercel Serverless</div>
-                            <div class="badge">📏 File Size Fixed</div>
-                            <div class="badge">🥽 VR Compatible</div>
-                            <div class="badge">🔄 Auto-Scaling</div>
-                        </div>
-                        
-                        <div class="endpoints">
-                            <h4>📡 API Endpoints Available:</h4>
-                            <div class="endpoint">GET /health - Server Health Check</div>
-                            <div class="endpoint">GET /apps - List VR Applications</div>
-                            <div class="endpoint">GET /categories - App Categories</div>
-                            <div class="endpoint">GET /admin - Admin Management Panel</div>
-                        </div>
+                    <div class="feature">
+                        <h3>🔍 Search & Discovery</h3>
+                        <p>Powerful search and category filtering for VR applications.</p>
+                        <div class="api-endpoint">GET /api/search?q=game</div>
+                        <div class="api-endpoint">GET /api/categories</div>
                     </div>
                     
-                    <div class="actions">
-                        <a href="/admin" class="btn">🛠️ Admin Panel</a>
-                        <a href="/apps" class="btn">📱 View Apps</a>
-                        <a href="/health" class="btn">💚 Health Check</a>
-                        <a href="/test" class="btn">🧪 Test Endpoint</a>
+                    <div class="feature">
+                        <h3>📊 Analytics & Stats</h3>
+                        <p>Download tracking and usage statistics for developers.</p>
+                        <div class="api-endpoint">GET /api/stats</div>
+                        <div class="api-endpoint">GET /api/download/:id</div>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3>🛠️ Admin Interface</h3>
+                        <p>Web-based admin panel for managing the app catalog.</p>
+                        <div class="api-endpoint">POST /admin/apps</div>
+                        <div class="api-endpoint">PUT /admin/apps/:id</div>
                     </div>
                 </div>
                 
-                <div class="footer">
-                    <h3>YCCC VR Lab</h3>
-                    <p>Room 112, Wells Campus</p>
-                    <p>Building the Future of VR Education 🎓</p>
+                <div class="section">
+                    <h3>🔗 Integration</h3>
+                    <p>This server integrates with:</p>
+                    <ul>
+                        <li><strong>VR Headsets:</strong> Quest, Pico, HTC Vive, etc.</li>
+                        <li><strong>Sideloading Tools:</strong> ADB, SideQuest integration</li>
+                        <li><strong>Web Interface:</strong> Desktop/mobile app browsing</li>
+                        <li><strong>Developer Tools:</strong> App submission and analytics</li>
+                    </ul>
                 </div>
-                
-                <script>
-                    // Test server connectivity on page load
-                    console.log('🔄 Testing PicoZen Server connectivity...');
-                    
-                    Promise.all([
-                        fetch('/health').then(r => r.json()),
-                        fetch('/test').then(r => r.json())
-                    ])
-                    .then(([health, test]) => {
-                        console.log('✅ Health Check:', health);
-                        console.log('✅ Test Endpoint:', test);
-                        console.log('🎉 PicoZen Server is fully operational on Vercel!');
-                    })
-                    .catch(err => {
-                        console.error('❌ Server connectivity test failed:', err);
-                    });
-                </script>
-            </body>
-            </html>
-        `);
-    } catch (error) {
-        res.status(500).json({ 
-            success: false,
-            error: 'Server error',
-            message: error.message 
-        });
-    }
+            </div>
+        </body>
+        </html>
+    `);
 });
 
-// Error handlers
+// Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
 
-// Export for Vercel serverless function
+// For Vercel serverless functions
 module.exports = app;
+
+// For local development
+if (require.main === module) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`🚀 PicoZen Server running on port ${PORT}`);
+        console.log(`📱 VR App Store API: http://localhost:${PORT}/api`);
+        console.log(`🛠️ Admin Panel: http://localhost:${PORT}/admin`);
+        console.log(`🌐 Web Interface: http://localhost:${PORT}/store`);
+    });
+}
