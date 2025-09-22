@@ -10,20 +10,20 @@ const mockData = {
     apps: [
         {
             id: 1,
-            package_name: "com.example.vr.demo",
-            title: "VR Demo App",
-            description: "A sample VR application for testing the PicoZen store",
-            short_description: "Sample VR demo",
+            package_name: "com.yccvrlab.demo",
+            title: "YCCC VR Demo",
+            description: "A demonstration VR application showcasing the capabilities of the PicoZen app store system. Features immersive environments and interactive elements designed for educational purposes.",
+            short_description: "Educational VR demonstration app",
             version: "1.0.0",
             version_code: 1,
-            category: "Games",
-            category_name: "Games",
-            developer: "PicoZen Team",
-            rating: 4.5,
-            download_count: 100,
-            file_size: 50000000,
-            download_url: "https://example.com/demo.apk",
-            icon_url: "/images/demo-icon.png",
+            category: "Education",
+            category_name: "Education",
+            developer: "YCCC VR Lab",
+            rating: 4.8,
+            download_count: 150,
+            file_size: 75000000,
+            download_url: "https://example.com/yccvrlab-demo.apk",
+            icon_url: "/images/apps/yccvrlab-demo.png",
             featured: true,
             active: true,
             created_at: new Date().toISOString(),
@@ -31,9 +31,13 @@ const mockData = {
         }
     ],
     categories: [
-        { id: 1, name: "Games", description: "VR Games and Entertainment", icon_url: "/images/categories/games.png", app_count: 1, display_order: 0, active: true },
-        { id: 2, name: "Education", description: "Learning and Training Applications", icon_url: "/images/categories/education.png", app_count: 0, display_order: 1, active: true },
-        { id: 3, name: "Productivity", description: "Work and Utility Applications", icon_url: "/images/categories/productivity.png", app_count: 0, display_order: 2, active: true }
+        { id: 1, name: "Games", description: "VR Games and Entertainment", icon_url: "/images/categories/games.png", app_count: 0, display_order: 0, active: true },
+        { id: 2, name: "Education", description: "Learning and Training Applications", icon_url: "/images/categories/education.png", app_count: 1, display_order: 1, active: true },
+        { id: 3, name: "Productivity", description: "Work and Utility Applications", icon_url: "/images/categories/productivity.png", app_count: 0, display_order: 2, active: true },
+        { id: 4, name: "Social", description: "Communication and Social VR", icon_url: "/images/categories/social.png", app_count: 0, display_order: 3, active: true },
+        { id: 5, name: "Health & Fitness", description: "Exercise and Wellness Apps", icon_url: "/images/categories/fitness.png", app_count: 0, display_order: 4, active: true },
+        { id: 6, name: "Entertainment", description: "Media and Video Applications", icon_url: "/images/categories/entertainment.png", app_count: 0, display_order: 5, active: true },
+        { id: 7, name: "Tools", description: "System Utilities and Tools", icon_url: "/images/categories/tools.png", app_count: 0, display_order: 6, active: true }
     ]
 };
 
@@ -112,52 +116,85 @@ async function initDatabase() {
 
         console.log('🔄 Initializing database connection...');
 
-        // Simplified pool configuration - no SSL
+        // Enhanced SSL configuration for Neon
         const poolConfig = {
             connectionString: connectionString,
-            ssl: false, // Disable SSL entirely for now
+            ssl: {
+                rejectUnauthorized: false,
+                // Neon-specific SSL settings
+                require: true,
+                ca: undefined,
+                cert: undefined,
+                key: undefined
+            },
+            // Optimized for serverless/Koyeb
             max: 1,
             min: 0,
             idleTimeoutMillis: 10000,
-            connectionTimeoutMillis: 3000,
+            connectionTimeoutMillis: 8000,
+            acquireTimeoutMillis: 8000,
+            createTimeoutMillis: 8000,
+            destroyTimeoutMillis: 5000,
+            createRetryIntervalMillis: 500,
         };
 
-        // If connection string contains SSL requirements, try with SSL disabled
+        // Override SSL settings based on connection string
         if (connectionString.includes('sslmode=require')) {
-            // Replace sslmode=require with sslmode=disable
-            poolConfig.connectionString = connectionString.replace('sslmode=require', 'sslmode=disable');
+            poolConfig.ssl = {
+                rejectUnauthorized: false,
+                require: true
+            };
         }
 
+        console.log('🔄 Creating connection pool with enhanced SSL settings...');
         pool = new Pool(poolConfig);
 
-        // Test connection
-        console.log('🔄 Testing database connection...');
-        await Promise.race([
-            pool.query('SELECT 1 as test'),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
-        ]);
+        // Test connection with enhanced error handling
+        let retries = 3;
+        let lastError = null;
+        
+        while (retries > 0) {
+            try {
+                console.log(`🔄 Testing database connection... (attempt ${4 - retries})`);
+                const result = await pool.query('SELECT 1 as test, NOW() as timestamp');
+                console.log('✅ Database connection successful!', result.rows[0]);
+                break;
+            } catch (error) {
+                lastError = error;
+                retries--;
+                console.error(`❌ Connection attempt failed:`, error.message);
+                
+                if (retries === 0) {
+                    console.error('❌ All connection attempts failed. Last error:', error);
+                    throw new Error(`Database connection failed after 3 attempts: ${error.message}`);
+                }
+                
+                console.log(`🔄 Retrying connection... (${retries} attempts left)`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
 
-        console.log('✅ Database connected successfully!');
-
-        // Create tables
+        // Create tables with error handling
+        console.log('🔄 Creating/verifying database tables...');
         for (const [tableName, tableSQL] of Object.entries(schema)) {
             try {
                 await pool.query(tableSQL);
-                console.log(`✅ Table '${tableName}' ready.`);
+                console.log(`✅ Table '${tableName}' created/verified.`);
             } catch (error) {
-                console.error(`❌ Error with table '${tableName}':`, error.message);
+                console.error(`❌ Error creating table '${tableName}':`, error.message);
+                throw error;
             }
         }
 
         // Seed default data
         await seedDefaultData();
+
+        console.log('✅ Database initialized successfully.');
         dbInitialized = true;
         return true;
 
     } catch (error) {
         console.error('❌ Database initialization failed:', error.message);
-        console.log('🔄 Falling back to mock data...');
-        
         // Clean up failed pool
         if (pool) {
             try {
@@ -168,6 +205,7 @@ async function initDatabase() {
             pool = null;
         }
         
+        console.log('🔄 Falling back to mock data...');
         dbInitialized = true;
         return false; // Use mock data
     }
@@ -198,8 +236,34 @@ async function seedDefaultData() {
         }
         console.log('✅ Default categories seeded.');
 
+        // Add sample app if none exist
+        const { rows } = await pool.query('SELECT COUNT(*) as count FROM apps');
+        if (parseInt(rows[0].count) === 0) {
+            console.log('🔄 Adding sample VR app...');
+            await pool.query(`
+                INSERT INTO apps (package_name, title, description, short_description, version, version_code, category, developer, rating, file_size, download_url, icon_url, featured)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            `, [
+                'com.yccvrlab.demo',
+                'YCCC VR Demo',
+                'A demonstration VR application showcasing the capabilities of the PicoZen app store system. Features immersive environments and interactive elements designed for educational purposes.',
+                'Educational VR demonstration app',
+                '1.0.0',
+                1,
+                'Education',
+                'YCCC VR Lab',
+                4.8,
+                75000000,
+                'https://example.com/yccvrlab-demo.apk',
+                '/images/apps/yccvrlab-demo.png',
+                true
+            ]);
+            console.log('✅ Sample VR app added.');
+        }
+
     } catch (error) {
         console.error('❌ Error seeding default data:', error.message);
+        // Don't throw - categories are not critical for basic functionality
     }
 }
 
@@ -252,6 +316,7 @@ const dbHelpers = {
             }
 
             // Use real database
+            console.log('💾 Using real database for apps');
             const offset = (page - 1) * limit;
             let query = `
                 SELECT 
