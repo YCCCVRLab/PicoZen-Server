@@ -71,43 +71,79 @@ async function initDatabase() {
             throw new Error("POSTGRES_URL environment variable is not set by Vercel integration.");
         }
 
-        // Configure SSL for serverless environments
-        const sslConfig = process.env.NODE_ENV === 'production' 
-            ? { 
-                rejectUnauthorized: false,
-                // Additional SSL options for serverless environments
-                checkServerIdentity: () => undefined
-              }
-            : false;
+        console.log('🔄 Configuring database connection...');
 
-        pool = new Pool({
+        // More robust SSL configuration for Supabase/Vercel
+        let sslConfig = false;
+        
+        // Check if we need SSL (production or if connection string contains SSL requirements)
+        if (process.env.NODE_ENV === 'production' || connectionString.includes('sslmode') || connectionString.includes('supabase')) {
+            sslConfig = {
+                rejectUnauthorized: false,
+                // Handle certificate verification issues
+                ca: undefined,
+                cert: undefined,
+                key: undefined
+            };
+            
+            // Override SSL mode if PGSSLMODE is set
+            if (process.env.PGSSLMODE === 'no-verify' || process.env.PGSSLMODE === 'disable') {
+                sslConfig.rejectUnauthorized = false;
+            }
+        }
+
+        const poolConfig = {
             connectionString: connectionString,
             ssl: sslConfig,
-            // Additional pool configuration for serverless
-            max: 1, // Limit connections in serverless
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 2000,
-        });
+            // Optimized for serverless/Vercel functions
+            max: 1,
+            min: 0,
+            idleTimeoutMillis: 10000,
+            connectionTimeoutMillis: 5000,
+            acquireTimeoutMillis: 5000,
+            createTimeoutMillis: 5000,
+            destroyTimeoutMillis: 5000,
+            createRetryIntervalMillis: 200,
+        };
 
-        // Test connection with retry logic
+        console.log('🔄 Creating connection pool with SSL:', sslConfig ? 'enabled (no-verify)' : 'disabled');
+        pool = new Pool(poolConfig);
+
+        // Test connection with enhanced error handling
         let retries = 3;
+        let lastError = null;
+        
         while (retries > 0) {
             try {
-                await pool.query('SELECT 1');
-                console.log('✅ Connected to PostgreSQL database via Vercel integration.');
+                console.log(`🔄 Testing database connection... (attempt ${4 - retries})`);
+                const result = await pool.query('SELECT 1 as test');
+                console.log('✅ Database connection successful!');
                 break;
             } catch (error) {
+                lastError = error;
                 retries--;
-                if (retries === 0) throw error;
-                console.log(`Retrying database connection... (${retries} attempts left)`);
+                console.error(`❌ Connection attempt failed:`, error.message);
+                
+                if (retries === 0) {
+                    console.error('❌ All connection attempts failed. Last error:', error);
+                    throw new Error(`Database connection failed after 3 attempts: ${error.message}`);
+                }
+                
+                console.log(`🔄 Retrying connection... (${retries} attempts left)`);
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
-        // Create tables
-        for (const tableName of Object.keys(schema)) {
-            await pool.query(schema[tableName]);
-            console.log(`✅ Table ${tableName} created/verified.`);
+        // Create tables with error handling
+        console.log('🔄 Creating/verifying database tables...');
+        for (const [tableName, tableSQL] of Object.entries(schema)) {
+            try {
+                await pool.query(tableSQL);
+                console.log(`✅ Table '${tableName}' created/verified.`);
+            } catch (error) {
+                console.error(`❌ Error creating table '${tableName}':`, error.message);
+                throw error;
+            }
         }
 
         // Seed default data
@@ -118,6 +154,11 @@ async function initDatabase() {
 
     } catch (error) {
         console.error('❌ Database initialization failed:', error);
+        // Don't throw in serverless environment - let it retry on next request
+        if (process.env.NODE_ENV === 'production') {
+            console.log('🔄 Will retry database connection on next request...');
+            return false;
+        }
         throw error;
     }
 }
@@ -125,6 +166,7 @@ async function initDatabase() {
 // Seed default data
 async function seedDefaultData() {
     try {
+        console.log('🔄 Seeding default categories...');
         const defaultCategories = [
             { name: 'Games', description: 'VR Games and Entertainment', icon_url: '/images/categories/games.png' },
             { name: 'Education', description: 'Learning and Training Applications', icon_url: '/images/categories/education.png' },
@@ -145,11 +187,12 @@ async function seedDefaultData() {
         console.log('✅ Default categories seeded.');
 
     } catch (error) {
-        console.error('Error seeding default data:', error);
+        console.error('❌ Error seeding default data:', error.message);
+        // Don't throw - categories are not critical for basic functionality
     }
 }
 
-// Get database client
+// Get database client with connection check
 function getDB() {
     if (!pool) {
         throw new Error('Database not initialized. Call initDatabase() first.');
@@ -157,17 +200,22 @@ function getDB() {
     return pool;
 }
 
-// Database helper functions
+// Database helper functions with better error handling
 const dbHelpers = {
     // Get all apps with pagination
     getApps: async (page = 1, limit = 20, category = null, search = null) => {
         try {
+            // Ensure database is connected
+            if (!pool) {
+                await initDatabase();
+            }
+
             const offset = (page - 1) * limit;
             let query = `
                 SELECT 
                     a.*,
                     c.name as category_name,
-                    (SELECT COUNT(*) FROM downloads d WHERE d.app_id = a.id) as download_count
+                    COALESCE((SELECT COUNT(*) FROM downloads d WHERE d.app_id = a.id), 0) as download_count
                 FROM apps a
                 LEFT JOIN categories c ON a.category = c.name
                 WHERE a.active = TRUE
@@ -210,7 +258,7 @@ const dbHelpers = {
                     countQuery += ' AND (title ILIKE $1 OR description ILIKE $1 OR developer ILIKE $1)';
                     countParams.push(searchParam);
                 } else {
-                    countQuery += ' AND (title ILIKE $' + (countParams.length + 1) + ' OR a.description ILIKE $' + (countParams.length + 1) + ' OR a.developer ILIKE $' + (countParams.length + 1) + ')';
+                    countQuery += ' AND (title ILIKE $' + (countParams.length + 1) + ' OR description ILIKE $' + (countParams.length + 1) + ' OR developer ILIKE $' + (countParams.length + 1) + ')';
                     countParams.push(searchParam);
                 }
             }
@@ -237,6 +285,10 @@ const dbHelpers = {
     // Get single app with screenshots
     getApp: async (id) => {
         try {
+            if (!pool) {
+                await initDatabase();
+            }
+
             const { rows: appRows } = await pool.query('SELECT * FROM apps WHERE id = $1 AND active = TRUE', [id]);
             const app = appRows[0];
 
@@ -262,6 +314,10 @@ const dbHelpers = {
     // Add new app
     addApp: async (appData) => {
         try {
+            if (!pool) {
+                await initDatabase();
+            }
+
             const {
                 packageName, title, description, shortDescription, version, versionCode,
                 category, developer, fileSize, downloadUrl, iconUrl
@@ -306,9 +362,13 @@ const dbHelpers = {
     // Get categories
     getCategories: async () => {
         try {
+            if (!pool) {
+                await initDatabase();
+            }
+
             const { rows: categories } = await pool.query(`
                 SELECT c.*, 
-                (SELECT COUNT(*) FROM apps WHERE category = c.name AND active = TRUE) as app_count 
+                COALESCE((SELECT COUNT(*) FROM apps WHERE category = c.name AND active = TRUE), 0) as app_count 
                 FROM categories c
                 WHERE c.active = TRUE
                 ORDER BY c.display_order
@@ -322,4 +382,4 @@ const dbHelpers = {
     }
 };
 
-module.exports = { initDatabase, getDB, dbHelpers }; // Export as an object
+module.exports = { initDatabase, getDB, dbHelpers };
