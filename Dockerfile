@@ -1,12 +1,12 @@
 FROM node:18-alpine
 
-# Install system dependencies for Sharp and SQLite
+# Install system dependencies
 RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    sqlite \
-    curl
+    curl \
+    ca-certificates
 
 # Create app directory
 WORKDIR /app
@@ -21,7 +21,7 @@ RUN npm ci --only=production && npm cache clean --force
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p data uploads/images uploads/files uploads/temp
+RUN mkdir -p uploads/images uploads/files uploads/temp public/images
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -33,12 +33,12 @@ RUN chown -R picozen:nodejs /app
 # Switch to non-root user
 USER picozen
 
-# Expose port
-EXPOSE 3000
+# Expose port (Koyeb uses PORT environment variable)
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/api/health || exit 1
 
 # Start the application
 CMD ["node", "server.js"]
