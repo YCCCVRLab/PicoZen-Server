@@ -71,14 +71,38 @@ async function initDatabase() {
             throw new Error("POSTGRES_URL environment variable is not set by Vercel integration.");
         }
 
+        // Configure SSL for serverless environments
+        const sslConfig = process.env.NODE_ENV === 'production' 
+            ? { 
+                rejectUnauthorized: false,
+                // Additional SSL options for serverless environments
+                checkServerIdentity: () => undefined
+              }
+            : false;
+
         pool = new Pool({
             connectionString: connectionString,
-            ssl: { rejectUnauthorized: false } // Required for Supabase in some environments
+            ssl: sslConfig,
+            // Additional pool configuration for serverless
+            max: 1, // Limit connections in serverless
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 2000,
         });
 
-        // Test connection
-        await pool.query('SELECT 1');
-        console.log('✅ Connected to PostgreSQL database via Vercel integration.');
+        // Test connection with retry logic
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                await pool.query('SELECT 1');
+                console.log('✅ Connected to PostgreSQL database via Vercel integration.');
+                break;
+            } catch (error) {
+                retries--;
+                if (retries === 0) throw error;
+                console.log(`Retrying database connection... (${retries} attempts left)`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
 
         // Create tables
         for (const tableName of Object.keys(schema)) {
