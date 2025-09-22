@@ -1,10 +1,10 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
-const axios = require('axios');
 // Import the entire database module, then access dbHelpers
 const database = require('../database'); 
-const { scrapeAppFromUrl, getFileSizeFromUrl, formatFileSize, parseFileSize } = require('../scrapers');
+// Temporarily use simplified scrapers to avoid File reference errors
+const { scrapeAppFromUrl, getFileSizeFromUrl, formatFileSize, parseFileSize } = require('../scrapers-simple');
 
 const router = express.Router();
 
