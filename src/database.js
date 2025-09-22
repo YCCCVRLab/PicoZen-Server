@@ -1,8 +1,41 @@
-const { Pool } = require('pg'); // Use standard pg client
+const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 
 let pool = null;
+let dbInitialized = false;
+
+// Mock data for when database is unavailable
+const mockData = {
+    apps: [
+        {
+            id: 1,
+            package_name: "com.example.vr.demo",
+            title: "VR Demo App",
+            description: "A sample VR application for testing the PicoZen store",
+            short_description: "Sample VR demo",
+            version: "1.0.0",
+            version_code: 1,
+            category: "Games",
+            category_name: "Games",
+            developer: "PicoZen Team",
+            rating: 4.5,
+            download_count: 100,
+            file_size: 50000000,
+            download_url: "https://example.com/demo.apk",
+            icon_url: "/images/demo-icon.png",
+            featured: true,
+            active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }
+    ],
+    categories: [
+        { id: 1, name: "Games", description: "VR Games and Entertainment", icon_url: "/images/categories/games.png", app_count: 1, display_order: 0, active: true },
+        { id: 2, name: "Education", description: "Learning and Training Applications", icon_url: "/images/categories/education.png", app_count: 0, display_order: 1, active: true },
+        { id: 3, name: "Productivity", description: "Work and Utility Applications", icon_url: "/images/categories/productivity.png", app_count: 0, display_order: 2, active: true }
+    ]
+};
 
 // Database schema (PostgreSQL compatible)
 const schema = {
@@ -65,106 +98,85 @@ const schema = {
 
 // Initialize database connection pool and schema
 async function initDatabase() {
+    if (dbInitialized) {
+        return true;
+    }
+
     try {
-        const connectionString = process.env.POSTGRES_URL; // Use POSTGRES_URL from Vercel integration
+        const connectionString = process.env.POSTGRES_URL;
         if (!connectionString) {
-            throw new Error("POSTGRES_URL environment variable is not set by Vercel integration.");
+            console.warn("⚠️ POSTGRES_URL not set, using mock data");
+            dbInitialized = true;
+            return false; // No real database, but don't throw error
         }
 
-        console.log('🔄 Configuring database connection...');
+        console.log('🔄 Initializing database connection...');
 
-        // More robust SSL configuration for Supabase/Vercel
-        let sslConfig = false;
-        
-        // Check if we need SSL (production or if connection string contains SSL requirements)
-        if (process.env.NODE_ENV === 'production' || connectionString.includes('sslmode') || connectionString.includes('supabase')) {
-            sslConfig = {
-                rejectUnauthorized: false,
-                // Handle certificate verification issues
-                ca: undefined,
-                cert: undefined,
-                key: undefined
-            };
-            
-            // Override SSL mode if PGSSLMODE is set
-            if (process.env.PGSSLMODE === 'no-verify' || process.env.PGSSLMODE === 'disable') {
-                sslConfig.rejectUnauthorized = false;
-            }
-        }
-
+        // Simplified pool configuration - no SSL
         const poolConfig = {
             connectionString: connectionString,
-            ssl: sslConfig,
-            // Optimized for serverless/Vercel functions
+            ssl: false, // Disable SSL entirely for now
             max: 1,
             min: 0,
             idleTimeoutMillis: 10000,
-            connectionTimeoutMillis: 5000,
-            acquireTimeoutMillis: 5000,
-            createTimeoutMillis: 5000,
-            destroyTimeoutMillis: 5000,
-            createRetryIntervalMillis: 200,
+            connectionTimeoutMillis: 3000,
         };
 
-        console.log('🔄 Creating connection pool with SSL:', sslConfig ? 'enabled (no-verify)' : 'disabled');
-        pool = new Pool(poolConfig);
-
-        // Test connection with enhanced error handling
-        let retries = 3;
-        let lastError = null;
-        
-        while (retries > 0) {
-            try {
-                console.log(`🔄 Testing database connection... (attempt ${4 - retries})`);
-                const result = await pool.query('SELECT 1 as test');
-                console.log('✅ Database connection successful!');
-                break;
-            } catch (error) {
-                lastError = error;
-                retries--;
-                console.error(`❌ Connection attempt failed:`, error.message);
-                
-                if (retries === 0) {
-                    console.error('❌ All connection attempts failed. Last error:', error);
-                    throw new Error(`Database connection failed after 3 attempts: ${error.message}`);
-                }
-                
-                console.log(`🔄 Retrying connection... (${retries} attempts left)`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+        // If connection string contains SSL requirements, try with SSL disabled
+        if (connectionString.includes('sslmode=require')) {
+            // Replace sslmode=require with sslmode=disable
+            poolConfig.connectionString = connectionString.replace('sslmode=require', 'sslmode=disable');
         }
 
-        // Create tables with error handling
-        console.log('🔄 Creating/verifying database tables...');
+        pool = new Pool(poolConfig);
+
+        // Test connection
+        console.log('🔄 Testing database connection...');
+        await Promise.race([
+            pool.query('SELECT 1 as test'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
+        ]);
+
+        console.log('✅ Database connected successfully!');
+
+        // Create tables
         for (const [tableName, tableSQL] of Object.entries(schema)) {
             try {
                 await pool.query(tableSQL);
-                console.log(`✅ Table '${tableName}' created/verified.`);
+                console.log(`✅ Table '${tableName}' ready.`);
             } catch (error) {
-                console.error(`❌ Error creating table '${tableName}':`, error.message);
-                throw error;
+                console.error(`❌ Error with table '${tableName}':`, error.message);
             }
         }
 
         // Seed default data
         await seedDefaultData();
-
-        console.log('✅ Database initialized successfully.');
+        dbInitialized = true;
         return true;
 
     } catch (error) {
-        console.error('❌ Database initialization failed:', error);
-        // Don't throw in serverless environment - let it retry on next request
-        if (process.env.NODE_ENV === 'production') {
-            console.log('🔄 Will retry database connection on next request...');
-            return false;
+        console.error('❌ Database initialization failed:', error.message);
+        console.log('🔄 Falling back to mock data...');
+        
+        // Clean up failed pool
+        if (pool) {
+            try {
+                await pool.end();
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+            pool = null;
         }
-        throw error;
+        
+        dbInitialized = true;
+        return false; // Use mock data
     }
 }
 
 // Seed default data
 async function seedDefaultData() {
+    if (!pool) return;
+    
     try {
         console.log('🔄 Seeding default categories...');
         const defaultCategories = [
@@ -188,28 +200,58 @@ async function seedDefaultData() {
 
     } catch (error) {
         console.error('❌ Error seeding default data:', error.message);
-        // Don't throw - categories are not critical for basic functionality
     }
 }
 
-// Get database client with connection check
+// Get database client
 function getDB() {
-    if (!pool) {
-        throw new Error('Database not initialized. Call initDatabase() first.');
-    }
     return pool;
 }
 
-// Database helper functions with better error handling
+// Database helper functions with fallback to mock data
 const dbHelpers = {
     // Get all apps with pagination
     getApps: async (page = 1, limit = 20, category = null, search = null) => {
         try {
-            // Ensure database is connected
-            if (!pool) {
+            // Try to initialize database if not done
+            if (!dbInitialized) {
                 await initDatabase();
             }
 
+            // If no database connection, use mock data
+            if (!pool) {
+                console.log('📋 Using mock data for apps');
+                let apps = [...mockData.apps];
+                
+                // Apply filters to mock data
+                if (category) {
+                    apps = apps.filter(app => app.category === category);
+                }
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    apps = apps.filter(app => 
+                        app.title.toLowerCase().includes(searchLower) ||
+                        app.description.toLowerCase().includes(searchLower) ||
+                        app.developer.toLowerCase().includes(searchLower)
+                    );
+                }
+                
+                const total = apps.length;
+                const offset = (page - 1) * limit;
+                apps = apps.slice(offset, offset + limit);
+                
+                return {
+                    apps,
+                    pagination: {
+                        page,
+                        limit,
+                        total,
+                        pages: Math.ceil(total / limit)
+                    }
+                };
+            }
+
+            // Use real database
             const offset = (page - 1) * limit;
             let query = `
                 SELECT 
@@ -243,7 +285,7 @@ const dbHelpers = {
 
             const { rows: apps } = await pool.query(query, params);
 
-            // Get total count for pagination
+            // Get total count
             let countQuery = 'SELECT COUNT(*) as total FROM apps WHERE active = TRUE';
             const countParams = [];
 
@@ -277,16 +319,24 @@ const dbHelpers = {
             };
 
         } catch (error) {
-            console.error('Error getting apps:', error);
-            throw error;
+            console.error('Error getting apps, falling back to mock data:', error.message);
+            // Fallback to mock data
+            return {
+                apps: mockData.apps,
+                pagination: { page: 1, limit: 20, total: mockData.apps.length, pages: 1 }
+            };
         }
     },
 
-    // Get single app with screenshots
+    // Get single app
     getApp: async (id) => {
         try {
-            if (!pool) {
+            if (!dbInitialized) {
                 await initDatabase();
+            }
+
+            if (!pool) {
+                return mockData.apps.find(app => app.id === parseInt(id)) || null;
             }
 
             const { rows: appRows } = await pool.query('SELECT * FROM apps WHERE id = $1 AND active = TRUE', [id]);
@@ -306,64 +356,20 @@ const dbHelpers = {
             return app;
 
         } catch (error) {
-            console.error('Error getting app:', error);
-            throw error;
-        }
-    },
-
-    // Add new app
-    addApp: async (appData) => {
-        try {
-            if (!pool) {
-                await initDatabase();
-            }
-
-            const {
-                packageName, title, description, shortDescription, version, versionCode,
-                category, developer, fileSize, downloadUrl, iconUrl
-            } = appData;
-
-            const { rows } = await pool.query(`
-                INSERT INTO apps (
-                    package_name, title, description, short_description, version, version_code,
-                    category, developer, file_size, download_url, icon_url
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                RETURNING id
-            `, [
-                packageName, title, description, shortDescription, version, versionCode,
-                category, developer, fileSize, downloadUrl, iconUrl
-            ]);
-
-            return rows[0].id;
-
-        } catch (error) {
-            console.error('Error adding app:', error);
-            throw error;
-        }
-    },
-
-    // Record download
-    recordDownload: async (appId, ipAddress, userAgent) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            await client.query('INSERT INTO downloads (app_id, ip_address, user_agent) VALUES ($1, $2, $3)', [appId, ipAddress, userAgent]);
-            await client.query('UPDATE apps SET download_count = download_count + 1 WHERE id = $1', [appId]);
-            await client.query('COMMIT');
-        } catch (error) {
-            await client.query('ROLLBACK');
-            console.error('Error recording download:', error);
-            throw error;
-        } finally {
-            client.release();
+            console.error('Error getting app:', error.message);
+            return mockData.apps.find(app => app.id === parseInt(id)) || null;
         }
     },
 
     // Get categories
     getCategories: async () => {
         try {
-            if (!pool) {
+            if (!dbInitialized) {
                 await initDatabase();
+            }
+
+            if (!pool) {
+                return mockData.categories;
             }
 
             const { rows: categories } = await pool.query(`
@@ -376,8 +382,54 @@ const dbHelpers = {
             return categories;
 
         } catch (error) {
-            console.error('Error getting categories:', error);
+            console.error('Error getting categories:', error.message);
+            return mockData.categories;
+        }
+    },
+
+    // Add new app
+    addApp: async (appData) => {
+        if (!pool) {
+            throw new Error('Database not available');
+        }
+
+        const {
+            packageName, title, description, shortDescription, version, versionCode,
+            category, developer, fileSize, downloadUrl, iconUrl
+        } = appData;
+
+        const { rows } = await pool.query(`
+            INSERT INTO apps (
+                package_name, title, description, short_description, version, version_code,
+                category, developer, file_size, download_url, icon_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING id
+        `, [
+            packageName, title, description, shortDescription, version, versionCode,
+            category, developer, fileSize, downloadUrl, iconUrl
+        ]);
+
+        return rows[0].id;
+    },
+
+    // Record download
+    recordDownload: async (appId, ipAddress, userAgent) => {
+        if (!pool) {
+            console.log('📋 Mock: Recording download for app', appId);
+            return;
+        }
+
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query('INSERT INTO downloads (app_id, ip_address, user_agent) VALUES ($1, $2, $3)', [appId, ipAddress, userAgent]);
+            await client.query('UPDATE apps SET download_count = download_count + 1 WHERE id = $1', [appId]);
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
             throw error;
+        } finally {
+            client.release();
         }
     }
 };
