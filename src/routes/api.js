@@ -301,8 +301,11 @@ router.get('/download/:id', async (req, res) => {
                         error: 'APK file not found on server'
                     });
                 }
-            }\n        }\n        
-        // No valid download URL\n        res.status(404).json({
+            }
+        }
+        
+        // No valid download URL
+        res.status(404).json({
             success: false,
             error: 'Download not available for this app'
         });
