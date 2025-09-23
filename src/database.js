@@ -23,7 +23,7 @@ const mockData = {
             download_count: 0,
             file_size: 75000000,
             download_url: "#",
-            icon_url: "https://via.placeholder.com/512x512/4A90E2/FFFFFF?text=YCCC+VR",
+            icon_url: "", // Use empty string to avoid DNS issues
             featured: true,
             active: true,
             created_at: new Date().toISOString(),
@@ -65,7 +65,7 @@ const mockData = {
             download_count: 2500,
             file_size: 250000000,
             download_url: "#",
-            icon_url: "https://via.placeholder.com/512x512/E74C3C/FFFFFF?text=VR+Game",
+            icon_url: "", // Use empty string to avoid DNS issues
             featured: false,
             active: true,
             created_at: new Date().toISOString(),
@@ -73,13 +73,13 @@ const mockData = {
         }
     ],
     categories: [
-        { id: 1, name: "Games", description: "VR Games and Entertainment", icon_url: "https://via.placeholder.com/128x128/E74C3C/FFFFFF?text=Games", app_count: 1, display_order: 0, active: true },
-        { id: 2, name: "Education", description: "Learning and Training Applications", icon_url: "https://via.placeholder.com/128x128/4A90E2/FFFFFF?text=Edu", app_count: 2, display_order: 1, active: true },
-        { id: 3, name: "Productivity", description: "Work and Utility Applications", icon_url: "https://via.placeholder.com/128x128/2ECC71/FFFFFF?text=Prod", app_count: 0, display_order: 2, active: true },
-        { id: 4, name: "Social", description: "Communication and Social VR", icon_url: "https://via.placeholder.com/128x128/9B59B6/FFFFFF?text=Social", app_count: 0, display_order: 3, active: true },
-        { id: 5, name: "Health & Fitness", description: "Exercise and Wellness Apps", icon_url: "https://via.placeholder.com/128x128/F39C12/FFFFFF?text=Health", app_count: 0, display_order: 4, active: true },
-        { id: 6, name: "Entertainment", description: "Media and Video Applications", icon_url: "https://via.placeholder.com/128x128/1ABC9C/FFFFFF?text=Media", app_count: 0, display_order: 5, active: true },
-        { id: 7, name: "Tools", description: "System Utilities and Tools", icon_url: "https://via.placeholder.com/128x128/34495E/FFFFFF?text=Tools", app_count: 0, display_order: 6, active: true }
+        { id: 1, name: "Games", description: "VR Games and Entertainment", icon_url: "", app_count: 1, display_order: 0, active: true },
+        { id: 2, name: "Education", description: "Learning and Training Applications", icon_url: "", app_count: 2, display_order: 1, active: true },
+        { id: 3, name: "Productivity", description: "Work and Utility Applications", icon_url: "", app_count: 0, display_order: 2, active: true },
+        { id: 4, name: "Social", description: "Communication and Social VR", icon_url: "", app_count: 0, display_order: 3, active: true },
+        { id: 5, name: "Health & Fitness", description: "Exercise and Wellness Apps", icon_url: "", app_count: 0, display_order: 4, active: true },
+        { id: 6, name: "Entertainment", description: "Media and Video Applications", icon_url: "", app_count: 0, display_order: 5, active: true },
+        { id: 7, name: "Tools", description: "System Utilities and Tools", icon_url: "", app_count: 0, display_order: 6, active: true }
     ]
 };
 
