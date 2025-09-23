@@ -8,11 +8,41 @@ const { scrapeAppFromUrl, getFileSizeFromUrl, formatFileSize, parseFileSize } = 
 
 const router = express.Router();
 
-// Add CORS headers for VR app compatibility
+// Enhanced CORS headers for VR app compatibility and GitHub Pages
 router.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    
+    // Allow specific origins including GitHub Pages
+    const allowedOrigins = [
+        'https://ycccrlab.github.io',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:8080'
+    ];
+    
+    if (allowedOrigins.includes(origin) || !origin) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+    } else {
+        // Allow localhost with any port for development
+        if (origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+            res.header('Access-Control-Allow-Origin', origin);
+        } else {
+            res.header('Access-Control-Allow-Origin', '*');
+        }
+    }
+    
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type', 'Accept', 'Authorization');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
+    
+    // Log CORS requests for debugging
+    if (req.method === 'OPTIONS' || origin) {
+        console.log(`CORS request from ${origin || 'unknown'} to ${req.path}`);
+    }
     
     if (req.method === 'OPTIONS') {
         res.sendStatus(200);
@@ -33,7 +63,9 @@ router.get('/health', async (req, res) => {
             timestamp: new Date().toISOString(),
             server: 'PicoZen-Server',
             version: '1.0.0',
-            database: dbStatus ? 'connected' : 'mock_data'
+            database: dbStatus ? 'connected' : 'mock_data',
+            cors: 'enabled',
+            origin: req.headers.origin || 'none'
         });
     } catch (error) {
         res.json({
@@ -43,7 +75,9 @@ router.get('/health', async (req, res) => {
             server: 'PicoZen-Server',
             version: '1.0.0',
             database: 'mock_data',
-            note: 'Using fallback data'
+            note: 'Using fallback data',
+            cors: 'enabled',
+            origin: req.headers.origin || 'none'
         });
     }
 });
@@ -90,6 +124,8 @@ router.post('/scrape', async (req, res) => {
 // Get all apps with pagination and filtering
 router.get('/apps', async (req, res) => {
     try {
+        console.log(`Apps request from origin: ${req.headers.origin || 'none'}`);
+        
         const {
             page = 1,
             limit = 20,
@@ -147,21 +183,27 @@ router.get('/apps', async (req, res) => {
             };
         });
         
+        console.log(`Returning ${transformedApps.length} apps to ${req.headers.origin || 'unknown'}`);
+        
         res.json({
             success: true,
             apps: transformedApps,
-            pagination: result.pagination
+            pagination: result.pagination,
+            server: 'PicoZen-Server',
+            timestamp: new Date().toISOString()
         });
         
     } catch (error) {
         console.error('Error fetching apps:', error);
         
-        // Return a more user-friendly error response
+        // Return a more user-friendly error response with CORS headers
         res.status(200).json({
             success: true,
             apps: [],
             pagination: { page: 1, limit: 20, total: 0, pages: 0 },
-            note: 'Service temporarily unavailable, please try again later'
+            note: 'Service temporarily unavailable, please try again later',
+            error: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });
@@ -365,9 +407,9 @@ router.get('/categories', async (req, res) => {
         res.json({
             success: true,
             categories: [
-                { id: 1, name: "Games", description: "VR Games and Entertainment", iconUrl: "/images/categories/games.png", appCount: 0, displayOrder: 0 },
-                { id: 2, name: "Education", description: "Learning Applications", iconUrl: "/images/categories/education.png", appCount: 0, displayOrder: 1 },
-                { id: 3, name: "Tools", description: "Utilities and Tools", iconUrl: "/images/categories/tools.png", appCount: 0, displayOrder: 2 }
+                { id: 1, name: "Games", description: "VR Games and Entertainment", iconUrl: "", appCount: 0, displayOrder: 0 },
+                { id: 2, name: "Education", description: "Learning Applications", iconUrl: "", appCount: 0, displayOrder: 1 },
+                { id: 3, name: "Tools", description: "Utilities and Tools", iconUrl: "", appCount: 0, displayOrder: 2 }
             ]
         });
     }
@@ -567,12 +609,18 @@ router.get('/test', (req, res) => {
         success: true,
         message: 'PicoZen Server API is working',
         timestamp: new Date().toISOString(),
+        origin: req.headers.origin || 'none',
+        userAgent: req.headers['user-agent'] || 'none',
         endpoints: {
             apps: '/api/apps',
             categories: '/api/categories',
             search: '/api/search',
             download: '/api/download/:id',
             health: '/api/health'
+        },
+        cors: {
+            enabled: true,
+            origin: req.headers.origin || 'none'
         }
     });
 });
