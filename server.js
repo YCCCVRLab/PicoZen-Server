@@ -11,6 +11,7 @@ require('dotenv').config();
 const database = require('./src/database'); // Import the entire module
 const apiRoutes = require('./src/routes/api');
 const adminRoutes = require('./src/routes/admin');
+const syncRoutes = require('./src/routes/sync'); // Add sync routes
 const { errorHandler, notFound } = require('./src/middleware/errorHandlers');
 
 const app = express();
@@ -144,9 +145,10 @@ app.get('/health', (req, res) => {
         status: 'ok', 
         timestamp: new Date().toISOString(),
         server: 'PicoZen-Server-Vercel',
-        version: '1.0.2',
+        version: '1.0.3',
         database: dbInitialized ? 'ready' : 'initializing',
-        cors: 'enabled'
+        cors: 'enabled',
+        sync: 'enabled'
     });
 });
 
@@ -156,9 +158,10 @@ app.get('/api/health', (req, res) => {
         status: 'ok', 
         timestamp: new Date().toISOString(),
         server: 'PicoZen-Server-Vercel',
-        version: '1.0.2',
+        version: '1.0.3',
         database: dbInitialized ? 'ready' : 'initializing',
-        cors: 'enabled'
+        cors: 'enabled',
+        sync: 'enabled'
     });
 });
 
@@ -174,7 +177,8 @@ app.get('/test', (req, res) => {
             apps: '/apps',
             categories: '/categories',
             search: '/search',
-            admin: '/admin'
+            admin: '/admin',
+            sync: '/api/sync'
         },
         cors: {
             enabled: true,
@@ -197,7 +201,8 @@ app.get('/api/test', (req, res) => {
             apps: '/api/apps',
             categories: '/api/categories',
             search: '/api/search',
-            admin: '/admin'
+            admin: '/admin',
+            sync: '/api/sync'
         },
         cors: {
             enabled: true,
@@ -226,6 +231,7 @@ app.use('/files', express.static(path.join(__dirname, 'uploads/files')));
 
 // API Routes
 app.use('/api', apiRoutes);
+app.use('/api/sync', syncRoutes); // Add sync routes
 app.use('/admin', adminRoutes);
 
 // Direct routes (without /api prefix)
@@ -299,7 +305,7 @@ app.get('/', async (req, res) => {
                     }
                     .footer h3 { color: #667eea; margin-bottom: 10px; }
                     .footer p { color: #888; margin: 5px 0; }
-                    .cors-status {
+                    .sync-status {
                         background: rgba(76, 175, 80, 0.2);
                         border: 1px solid #4CAF50;
                         border-radius: 10px;
@@ -307,7 +313,7 @@ app.get('/', async (req, res) => {
                         margin: 20px 0;
                         text-align: center;
                     }
-                    .cors-status h4 { color: #4CAF50; margin-bottom: 10px; }
+                    .sync-status h4 { color: #4CAF50; margin-bottom: 10px; }
                 </style>
             </head>
             <body>
@@ -315,34 +321,34 @@ app.get('/', async (req, res) => {
                     <div class="header">
                         <div class="logo">🥽</div>
                         <h1 class="title">PicoZen Server</h1>
-                        <p class="subtitle">VR App Store Backend - CORS Fixed & Running!</p>
+                        <p class="subtitle">VR App Store Backend with AItable ↔ Neon Sync!</p>
                     </div>
                     
-                    <div class="cors-status">
-                        <h4>🔧 CORS Issue Fixed!</h4>
-                        <p>Server now properly handles requests from GitHub Pages and all origins</p>
+                    <div class="sync-status">
+                        <h4>🔄 Sync System Active!</h4>
+                        <p>Bi-directional synchronization between AItable and Neon database enabled</p>
                     </div>
                     
                     <div class="status-card">
                         <div class="status-header">
                             <span class="status-icon">✅</span>
-                            <span class="status-title">Server Online & CORS Fixed</span>
+                            <span class="status-title">Server Online with Sync</span>
                         </div>
                         
                         <div class="badges">
-                            <div class="badge">🚀 Vercel Server</div>
+                            <div class="badge">🚀 Koyeb Server</div>
                             <div class="badge">🌐 CORS Enabled</div>
                             <div class="badge">🥽 VR Compatible</div>
-                            <div class="badge">🔄 Auto-Scaling</div>
+                            <div class="badge">🔄 Sync Ready</div>
                         </div>
                         
                         <div class="endpoints">
                             <h4>📡 API Endpoints Available:</h4>
                             <div class="endpoint">GET /api/health - Server Health Check</div>
                             <div class="endpoint">GET /api/apps - List VR Applications</div>
-                            <div class="endpoint">GET /apps - Direct Apps Endpoint</div>
-                            <div class="endpoint">GET /api/categories - App Categories</div>
-                            <div class="endpoint">GET /api/test - Connection Test</div>
+                            <div class="endpoint">GET /api/sync/status - Sync Status</div>
+                            <div class="endpoint">POST /api/sync/airtable-to-neon - Import from AItable</div>
+                            <div class="endpoint">GET /api/sync/neon-to-airtable - Export to AItable</div>
                             <div class="endpoint">GET /admin - Admin Management Panel</div>
                         </div>
                     </div>
@@ -350,9 +356,8 @@ app.get('/', async (req, res) => {
                     <div class="actions">
                         <a href="/admin" class="btn">🛠️ Admin Panel</a>
                         <a href="/api/apps" class="btn">📱 View Apps JSON</a>
-                        <a href="/apps" class="btn">📱 Apps Direct</a>
+                        <a href="/api/sync/status" class="btn">🔄 Sync Status</a>
                         <a href="/api/health" class="btn">💚 Health Check</a>
-                        <a href="/api/test" class="btn">🧪 Test Endpoint</a>
                     </div>
                 </div>
                 
@@ -368,16 +373,14 @@ app.get('/', async (req, res) => {
                     
                     Promise.all([
                         fetch('/api/health').then(r => r.json()),
-                        fetch('/api/test').then(r => r.json()),
-                        fetch('/api/apps').then(r => r.json()),
-                        fetch('/apps').then(r => r.json())
+                        fetch('/api/sync/status').then(r => r.json()),
+                        fetch('/api/apps').then(r => r.json())
                     ])
-                    .then(([health, test, apps, appsirect]) => {
+                    .then(([health, sync, apps]) => {
                         console.log('✅ Health Check:', health);
-                        console.log('✅ Test Endpoint:', test);
+                        console.log('✅ Sync Status:', sync);
                         console.log('✅ Apps API:', apps);
-                        console.log('✅ Apps Direct:', appsirect);
-                        console.log('🎉 PicoZen Server is fully operational with CORS fixed!');
+                        console.log('🎉 PicoZen Server with sync is fully operational!');
                     })
                     .catch(err => {
                         console.error('❌ Server connectivity test failed:', err);
@@ -410,9 +413,10 @@ if (!process.env.VERCEL) {
                 console.log(`📱 Store interface: http://localhost:${PORT}`);
                 console.log(`⚙️  Admin panel: http://localhost:${PORT}/admin`);
                 console.log(`🔌 API endpoints: http://localhost:${PORT}/api`);
+                console.log(`🔄 Sync endpoints: http://localhost:${PORT}/api/sync`);
                 console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
                 console.log(`🌐 CORS enabled for GitHub Pages and all origins`);
-                console.log(`🔧 CORS fixed - should work with PicoZen-Web now!`);
+                console.log(`🔧 AItable ↔ Neon sync system ready!`);
             });
         } catch (error) {
             console.error('❌ Failed to start local server:', error);
