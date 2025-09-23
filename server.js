@@ -229,6 +229,21 @@ app.use(async (req, res, next) => {
 app.use('/images', express.static(path.join(__dirname, 'uploads/images')));
 app.use('/files', express.static(path.join(__dirname, 'uploads/files')));
 
+// Serve sync admin interface at /sync
+app.get('/sync', async (req, res) => {
+    try {
+        const syncHtml = await fs.readFile(path.join(__dirname, 'src/admin/sync.html'), 'utf8');
+        res.send(syncHtml);
+    } catch (error) {
+        console.error('Error serving sync interface:', error);
+        res.status(500).send(`
+            <h1>Sync Interface Error</h1>
+            <p>Could not load sync interface. Error: ${error.message}</p>
+            <a href="/">← Back to Home</a>
+        `);
+    }
+});
+
 // API Routes
 app.use('/api', apiRoutes);
 app.use('/api/sync', syncRoutes); // Add sync routes
@@ -298,6 +313,9 @@ app.get('/', async (req, res) => {
                         transform: translateY(-2px); 
                         box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
                     }
+                    .btn.sync {
+                        background: linear-gradient(135deg, #4CAF50, #45a049);
+                    }
                     .footer { 
                         text-align: center; padding: 40px 20px; 
                         border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -355,8 +373,9 @@ app.get('/', async (req, res) => {
                     
                     <div class="actions">
                         <a href="/admin" class="btn">🛠️ Admin Panel</a>
+                        <a href="/sync" class="btn sync">🔄 AItable ↔ Neon Sync</a>
                         <a href="/api/apps" class="btn">📱 View Apps JSON</a>
-                        <a href="/api/sync/status" class="btn">🔄 Sync Status</a>
+                        <a href="/api/sync/status" class="btn">📊 Sync Status</a>
                         <a href="/api/health" class="btn">💚 Health Check</a>
                     </div>
                 </div>
@@ -414,6 +433,7 @@ if (!process.env.VERCEL) {
                 console.log(`⚙️  Admin panel: http://localhost:${PORT}/admin`);
                 console.log(`🔌 API endpoints: http://localhost:${PORT}/api`);
                 console.log(`🔄 Sync endpoints: http://localhost:${PORT}/api/sync`);
+                console.log(`🔄 Sync interface: http://localhost:${PORT}/sync`);
                 console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
                 console.log(`🌐 CORS enabled for GitHub Pages and all origins`);
                 console.log(`🔧 AItable ↔ Neon sync system ready!`);
