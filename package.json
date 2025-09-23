@@ -1,24 +1,28 @@
 {
   "name": "picozen-server",
-  "version": "1.0.1",
-  "description": "Complete PicoZen VR app store backend - Multi-platform deployment",
+  "version": "1.0.2",
+  "description": "Complete PicoZen VR app store backend - Multi-platform deployment with XR Directory integration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
     "build": "echo 'Build complete'",
-    "postinstall": "echo 'Dependencies installed'"
+    "postinstall": "echo 'Dependencies installed'",
+    "migrate": "node scripts/migrate-xr-apps.js",
+    "migrate:force": "rm -rf data && node scripts/migrate-xr-apps.js"
   },
   "keywords": [
     "vr",
+    "xr", 
     "app-store", 
     "picozen",
     "serverless",
     "oculus",
     "quest",
     "pico",
-    "postgresql",
-    "supabase",
+    "education",
+    "yccc",
+    "sqlite",
     "koyeb"
   ],
   "author": "YCCC VR Lab",
@@ -33,7 +37,8 @@
     "dotenv": "^16.3.1",
     "axios": "^1.5.0",
     "cheerio": "^1.0.0-rc.12",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "sqlite3": "^5.1.6"
   },
   "engines": {
     "node": ">=18.0.0"
