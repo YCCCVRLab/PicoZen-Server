@@ -42,20 +42,82 @@ app.use(helmet({
     contentSecurityPolicy: false
 }));
 
-// Enhanced CORS configuration
-app.use(cors({
-    origin: true,
+// Enhanced CORS configuration for GitHub Pages and local development
+const corsOptions = {
+    origin: [
+        'https://ycccrlab.github.io',
+        'https://ycccrlab.github.io/PicoZen-Web',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:8080',
+        // Allow any localhost for development
+        /^http:\/\/localhost:\d+$/,
+        /^http:\/\/127\.0\.0\.1:\d+$/
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
-}));
+    allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'Cache-Control',
+        'X-Forwarded-For',
+        'X-Real-IP'
+    ],
+    optionsSuccessStatus: 200 // For legacy browser support
+};
 
-// Handle preflight requests
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
 app.options('*', (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    
+    // Check if origin is allowed
+    let allowedOrigin = '*';
+    if (corsOptions.origin.includes(origin)) {
+        allowedOrigin = origin;
+    } else {
+        // Check regex patterns for localhost
+        for (const pattern of corsOptions.origin) {
+            if (pattern instanceof RegExp && pattern.test(origin)) {
+                allowedOrigin = origin;
+                break;
+            }
+        }
+    }
+    
+    res.header('Access-Control-Allow-Origin', allowedOrigin);
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With', 'Content-Type', 'Accept', 'Authorization');
+    res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400'); // 24 hours
     res.sendStatus(200);
+});
+
+// Add additional CORS headers for all responses
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    if (origin && corsOptions.origin.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    } else {
+        // Check regex patterns for localhost
+        for (const pattern of corsOptions.origin) {
+            if (pattern instanceof RegExp && pattern.test(origin)) {
+                res.header('Access-Control-Allow-Origin', origin);
+                break;
+            }
+        }
+    }
+    
+    res.header('Access-Control-Allow-Credentials', 'true');
+    next();
 });
 
 // Rate limiting
@@ -89,7 +151,8 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         server: 'PicoZen-Server-Vercel',
         version: '1.0.1',
-        database: dbInitialized ? 'ready' : 'initializing'
+        database: dbInitialized ? 'ready' : 'initializing',
+        cors: 'enabled'
     });
 });
 
@@ -100,7 +163,8 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         server: 'PicoZen-Server-Vercel',
         version: '1.0.1',
-        database: dbInitialized ? 'ready' : 'initializing'
+        database: dbInitialized ? 'ready' : 'initializing',
+        cors: 'enabled'
     });
 });
 
@@ -118,7 +182,11 @@ app.get('/test', (req, res) => {
             search: '/search',
             admin: '/admin'
         },
-        cors: 'enabled',
+        cors: {
+            enabled: true,
+            allowedOrigins: corsOptions.origin.filter(o => typeof o === 'string'),
+            requestOrigin: req.headers.origin || 'none'
+        },
         database: dbInitialized ? 'connected' : 'connecting'
     });
 });
@@ -136,7 +204,11 @@ app.get('/api/test', (req, res) => {
             search: '/api/search',
             admin: '/admin'
         },
-        cors: 'enabled',
+        cors: {
+            enabled: true,
+            allowedOrigins: corsOptions.origin.filter(o => typeof o === 'string'),
+            requestOrigin: req.headers.origin || 'none'
+        },
         database: dbInitialized ? 'connected' : 'connecting'
     });
 });
@@ -244,30 +316,31 @@ app.get('/', async (req, res) => {
                     <div class="status-card">
                         <div class="status-header">
                             <span class="status-icon">✅</span>
-                            <span class="status-title">Server Online & Ready</span>
+                            <span class="status-title">Server Online & CORS Fixed</span>
                         </div>
                         
                         <div class="badges">
                             <div class="badge">🚀 Vercel Server</div>
-                            <div class="badge">📏 File Size Fixed</div>
+                            <div class="badge">🌐 CORS Enabled</div>
                             <div class="badge">🥽 VR Compatible</div>
                             <div class="badge">🔄 Auto-Scaling</div>
                         </div>
                         
                         <div class="endpoints">
                             <h4>📡 API Endpoints Available:</h4>
-                            <div class="endpoint">GET /health - Server Health Check</div>
-                            <div class="endpoint">GET /apps - List VR Applications</div>
-                            <div class="endpoint">GET /categories - App Categories</div>
+                            <div class="endpoint">GET /api/health - Server Health Check</div>
+                            <div class="endpoint">GET /api/apps - List VR Applications</div>
+                            <div class="endpoint">GET /api/categories - App Categories</div>
+                            <div class="endpoint">GET /api/test - Connection Test</div>
                             <div class="endpoint">GET /admin - Admin Management Panel</div>
                         </div>
                     </div>
                     
                     <div class="actions">
                         <a href="/admin" class="btn">🛠️ Admin Panel</a>
-                        <a href="/apps" class="btn">📱 View Apps</a>
-                        <a href="/health" class="btn">💚 Health Check</a>
-                        <a href="/test" class="btn">🧪 Test Endpoint</a>
+                        <a href="/api/apps" class="btn">📱 View Apps JSON</a>
+                        <a href="/api/health" class="btn">💚 Health Check</a>
+                        <a href="/api/test" class="btn">🧪 Test Endpoint</a>
                     </div>
                 </div>
                 
@@ -282,12 +355,14 @@ app.get('/', async (req, res) => {
                     console.log('🔄 Testing PicoZen Server connectivity...');
                     
                     Promise.all([
-                        fetch('/health').then(r => r.json()),
-                        fetch('/test').then(r => r.json())
+                        fetch('/api/health').then(r => r.json()),
+                        fetch('/api/test').then(r => r.json()),
+                        fetch('/api/apps').then(r => r.json())
                     ])
-                    .then(([health, test]) => {
+                    .then(([health, test, apps]) => {
                         console.log('✅ Health Check:', health);
                         console.log('✅ Test Endpoint:', test);
+                        console.log('✅ Apps API:', apps);
                         console.log('🎉 PicoZen Server is fully operational on Vercel!');
                     })
                     .catch(err => {
@@ -322,6 +397,7 @@ if (!process.env.VERCEL) {
                 console.log(`⚙️  Admin panel: http://localhost:${PORT}/admin`);
                 console.log(`🔌 API endpoints: http://localhost:${PORT}/api`);
                 console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
+                console.log(`🌐 CORS enabled for GitHub Pages and localhost`);
             });
         } catch (error) {
             console.error('❌ Failed to start local server:', error);
