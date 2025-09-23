@@ -62,7 +62,7 @@ router.get('/health', async (req, res) => {
             status: 'ok',
             timestamp: new Date().toISOString(),
             server: 'PicoZen-Server',
-            version: '1.0.0',
+            version: '1.0.2',
             database: dbStatus ? 'connected' : 'mock_data',
             cors: 'enabled',
             origin: req.headers.origin || 'none'
@@ -73,11 +73,35 @@ router.get('/health', async (req, res) => {
             status: 'ok',
             timestamp: new Date().toISOString(),
             server: 'PicoZen-Server',
-            version: '1.0.0',
+            version: '1.0.2',
             database: 'mock_data',
             note: 'Using fallback data',
             cors: 'enabled',
             origin: req.headers.origin || 'none'
+        });
+    }
+});
+
+// Migration endpoint - Added to fix admin panel
+router.get('/migrate', async (req, res) => {
+    try {
+        console.log('🚀 Starting XR Apps migration...');
+        
+        // Import and run migration
+        const { migrateXRApps } = require('../../scripts/migrate-xr-apps');
+        await migrateXRApps();
+        
+        res.json({
+            success: true,
+            message: 'XR Apps migration completed successfully! Added 17 VR educational applications.',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Migration error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Migration failed',
+            message: error.message
         });
     }
 });
@@ -616,7 +640,8 @@ router.get('/test', (req, res) => {
             categories: '/api/categories',
             search: '/api/search',
             download: '/api/download/:id',
-            health: '/api/health'
+            health: '/api/health',
+            migrate: '/api/migrate'
         },
         cors: {
             enabled: true,
